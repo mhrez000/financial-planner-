@@ -1,0 +1,180 @@
+// Sage data model.
+//
+// Money is stored as integer cents (AUD by default) — never floats.
+// Expense transaction amounts are negative, income positive.
+//
+// Local development runs on SQLite for a zero-setup experience; production
+// targets PostgreSQL. The schema deliberately avoids provider-specific
+// features so the swap is a one-line change plus `prisma migrate`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  accounts     Account[]
+  transactions Transaction[]
+  categories   Category[]
+  rules        CategoryRule[]
+  budgets      Budget[]
+  goals        Goal[]
+  bills        Bill[]
+  debts        Debt[]
+  habits       Habit[]
+}
+
+// TRANSACTION | SAVINGS | CREDIT_CARD | LOAN | INVESTMENT | SUPER | PROPERTY | VEHICLE
+model Account {
+  id           String  @id @default(cuid())
+  userId       String
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  institution  String
+  type         String
+  balanceCents Int
+  // Liability balances (credit cards, loans) are stored negative.
+
+  transactions Transaction[]
+
+  @@index([userId])
+}
+
+model Category {
+  id    String @id @default(cuid())
+  userId String
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name  String
+  // group: INCOME | ESSENTIAL | LIFESTYLE | FINANCIAL — used for 50/30/20 rollups
+  group String
+  icon  String @default("circle")
+
+  transactions Transaction[]
+  budgets      Budget[]
+  rules        CategoryRule[]
+
+  @@unique([userId, name])
+}
+
+model CategoryRule {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Case-insensitive substring matched against merchant + description.
+  pattern    String
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  priority   Int      @default(0)
+
+  @@index([userId])
+}
+
+model Transaction {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId   String
+  account     Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  date        DateTime
+  amountCents Int
+  merchant    String
+  description String    @default("")
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tags        String    @default("") // comma-separated; normalised table in Postgres phase
+  // Set when the recurring-detection engine identifies this as part of a series.
+  recurringKey String?
+
+  @@index([userId, date])
+  @@index([accountId])
+}
+
+model Budget {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  amountCents Int
+  // MONTHLY | WEEKLY | FORTNIGHTLY | ANNUAL
+  period      String   @default("MONTHLY")
+
+  @@unique([userId, categoryId, period])
+}
+
+model Goal {
+  id                 String    @id @default(cuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  icon               String    @default("target")
+  targetCents        Int
+  savedCents         Int       @default(0)
+  monthlyContribCents Int      @default(0)
+  deadline           DateTime?
+  createdAt          DateTime  @default(now())
+}
+
+model Bill {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  amountCents Int
+  nextDueDate DateTime
+  // WEEKLY | FORTNIGHTLY | MONTHLY | QUARTERLY | ANNUAL
+  frequency   String   @default("MONTHLY")
+  autopay     Boolean  @default(false)
+
+  @@index([userId, nextDueDate])
+}
+
+model Debt {
+  id              String @id @default(cuid())
+  userId          String
+  user            User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  // MORTGAGE | CAR_LOAN | CREDIT_CARD | PERSONAL_LOAN | HECS
+  type            String
+  balanceCents    Int
+  aprBps          Int // annual interest rate in basis points (e.g. 599 = 5.99%)
+  minPaymentCents Int
+}
+
+model Habit {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  icon      String     @default("flame")
+  createdAt DateTime   @default(now())
+  logs      HabitLog[]
+}
+
+model HabitLog {
+  id      String   @id @default(cuid())
+  habitId String
+  habit   Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date    DateTime
+
+  @@unique([habitId, date])
+}
+
+model NetWorthSnapshot {
+  id               String   @id @default(cuid())
+  userId           String
+  date             DateTime
+  assetsCents      Int
+  liabilitiesCents Int
+
+  @@unique([userId, date])
+}
