@@ -5,14 +5,18 @@ import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import {
   BarChart3,
+  Bell,
   CalendarClock,
   CreditCard,
+  FileText,
   Flame,
+  Import,
   LayoutDashboard,
   Leaf,
   LineChart,
   PiggyBank,
   Repeat,
+  Settings,
   Target,
   Wallet,
 } from "lucide-react";
@@ -30,6 +34,13 @@ const NAV = [
   { href: "/habits", label: "Habits", icon: Flame },
 ];
 
+const TOOLS = [
+  { href: "/import", label: "Import & Sync", icon: Import },
+  { href: "/reports", label: "Reports", icon: FileText },
+  { href: "/notifications", label: "Notifications", icon: Bell },
+  { href: "/settings", label: "Settings", icon: Settings },
+];
+
 export function Sidebar() {
   const pathname = usePathname();
   return (
@@ -42,8 +53,30 @@ export function Sidebar() {
           </span>
           <span className="text-lg font-bold tracking-tight">Sage</span>
         </Link>
-        <nav className="flex flex-1 flex-col gap-0.5" aria-label="Primary">
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto" aria-label="Primary">
           {NAV.map(({ href, label, icon: Icon }) => {
+            const active = pathname === href;
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={active ? "page" : undefined}
+                className={clsx(
+                  "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                  active
+                    ? "bg-accent-soft text-accent"
+                    : "text-muted hover:bg-surface-2 hover:text-ink",
+                )}
+              >
+                <Icon size={17} strokeWidth={2.2} aria-hidden />
+                {label}
+              </Link>
+            );
+          })}
+          <p className="mb-1 mt-4 px-3 text-[10px] font-semibold uppercase tracking-wider text-faint">
+            Tools
+          </p>
+          {TOOLS.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
             return (
               <Link

@@ -24,3 +24,7 @@ jobs:
           npx prisma db push
           npx tsx prisma/seed.ts
           npm run build
+      - name: Install Playwright browser
+        run: npx playwright install chromium --with-deps
+      - name: E2E smoke suite
+        run: npm run e2e

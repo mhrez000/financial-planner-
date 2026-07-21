@@ -23,6 +23,9 @@ This repository contains the production-shaped web application (Next.js App Rout
 | **Debt planner** | Month-by-month snowball vs avalanche simulation, interest saved, payoff order |
 | **Habits & gamification** | Streaks, XP, levels, savings challenges |
 | **AI Coach** | Deterministic, explainable insight engine (category momentum, day-of-week patterns, late-night spending, subscription load, savings-rate feedback) — designed for an LLM conversational layer on top |
+| **Import & Sync** | Bank-provider abstraction with demo CDR feed; CSV import with automatic layout detection (CBA/ING/signed formats), preview, and duplicate reconciliation — every input path shares one ingestion pipeline |
+| **Notifications** | Live-derived notification centre (bill due, budget exceeded, large purchase, salary received, goal milestones, price rises, low balance) with header badge |
+| **Reports & exports** | Monthly report with MoM category comparison, print-to-PDF, full CSV/JSON data exports |
 
 All domain logic lives in pure, unit-tested modules under `src/lib/domain/` — shared verbatim with mobile and background jobs.
 
@@ -35,7 +38,7 @@ npm run db:reset      # creates SQLite db + seeds 8 months of realistic AU data
 npm run dev           # http://localhost:3000
 ```
 
-Other commands: `npm test` (21 domain tests), `npm run typecheck`, `npm run build`.
+Other commands: `npm test` (31 domain tests), `npm run e2e` (Playwright smoke suite — build first), `npm run typecheck`, `npm run build`.
 
 ## Repository layout
 

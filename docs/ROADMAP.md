@@ -8,13 +8,19 @@
 - Dashboard, transactions (+ rules engine), budgets, goals, analytics, subscriptions, bills, net worth, debt planner, habits/gamification
 - Domain engines with 21 unit tests; CI (typecheck, test, build)
 
-## Phase 2 — Real accounts
+## Phase 2 — Real accounts (in progress)
 
-- Auth.js: passkeys, TOTP, sessions, device management (swap `getDemoUser` → session user)
-- CDR bank connections via Basiq/Frollo sandbox → production (consent UX, sync workers, webhook ingestion, dedupe/reconciliation)
-- CSV import UI (same pipeline), receipt photo upload (storage + manual amount first)
-- Postgres migration + RLS; Temporal/BullMQ workers; notification service (FCM/APNs) for bills due, budget exceeded, large purchase, salary received
-- Playwright E2E suite
+- ✅ Ingestion pipeline shared by every input path: normalise → categorise → duplicate reconciliation (±1-day fingerprint matching) → insert (`src/lib/bank/sync.ts`, `src/lib/domain/dedupe.ts`)
+- ✅ Bank-provider abstraction with demo CDR feed exercising the full pipeline ("Sync now"); swapping in Basiq/Frollo changes one file (`src/lib/bank/provider.ts`)
+- ✅ CSV import with automatic layout detection (CBA headerless, ING debit/credit, signed-amount formats), preview table, duplicate flagging (`/import`)
+- ✅ Notification engine + centre: bill due, budget exceeded/warning, large purchase, salary received, goal milestone, price increase, low balance — same events feed FCM/APNs later (`src/lib/domain/notifications.ts`)
+- ✅ Reports with month-on-month category comparison, print-to-PDF, CSV + full JSON export endpoints (`/reports`)
+- ✅ Settings with data-portability exports and the Phase-2 security surface (`/settings`)
+- ✅ Playwright E2E smoke suite in CI (7 flows incl. import dedupe and sync)
+- ⬜ Auth.js: passkeys, TOTP, sessions, device management (swap `getDemoUser` → session user)
+- ⬜ Real CDR connection via Basiq/Frollo sandbox (consent UX, webhook ingestion)
+- ⬜ Postgres migration + RLS; Temporal/BullMQ workers; FCM/APNs delivery
+- ⬜ Receipt photo upload (storage + manual amount first)
 
 ## Phase 3 — Intelligence & delight
 

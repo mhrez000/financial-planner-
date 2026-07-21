@@ -12,6 +12,8 @@ import { computeHealthScore, type HealthScore } from "./domain/healthScore";
 import { detectRecurring, type RecurringSeries } from "./domain/recurring";
 import { forecastEndOfMonth, forecastGoal } from "./domain/forecast";
 import { generateInsights, type Insight } from "./domain/insights";
+import { generateNotifications } from "./domain/notifications";
+import { median } from "./domain/money";
 
 export async function getDemoUser() {
   const user = await prisma.user.findFirst();
@@ -299,6 +301,73 @@ export async function getAnalytics() {
 export async function getDebtsPage() {
   const user = await getDemoUser();
   return prisma.debt.findMany({ where: { userId: user.id }, orderBy: { balanceCents: "desc" } });
+}
+
+export async function getNotifications() {
+  const d = await getDashboard();
+  const user = d.user;
+  const weekAgo = new Date(Date.now() - 7 * 86400_000);
+  const recent = await prisma.transaction.findMany({
+    where: { userId: user.id, date: { gte: weekAgo } },
+    include: { category: true },
+  });
+  const ninetyDays = new Date(Date.now() - 90 * 86400_000);
+  const spends = await prisma.transaction.findMany({
+    where: { userId: user.id, date: { gte: ninetyDays }, amountCents: { lt: 0 } },
+    select: { amountCents: true },
+  });
+  const typical = median(spends.map((t) => Math.abs(t.amountCents)));
+
+  return generateNotifications({
+    now: new Date(),
+    cashCents: d.cashCents,
+    bills: d.bills,
+    budgets: d.budgets.map((b) => ({ name: b.category.name, amountCents: b.amountCents, spentCents: b.spentCents })),
+    recentTransactions: recent.map((t) => ({
+      merchant: t.merchant,
+      amountCents: t.amountCents,
+      date: t.date,
+      categoryGroup: t.category?.group ?? null,
+    })),
+    goals: d.goals.map((g) => ({ name: g.name, savedCents: g.savedCents, targetCents: g.targetCents })),
+    subscriptions: d.subscriptions,
+    typicalSpendCents: Math.max(typical, 1000),
+  });
+}
+
+/** Month summary for the Reports page. offset 0 = current month. */
+export async function getMonthlyReport(offset: number) {
+  const user = await getDemoUser();
+  const now = new Date();
+  const txns = await getAllTransactions(user.id);
+  const w = monthWindow(offset, now);
+  const prevW = monthWindow(offset + 1, now);
+  const monthTxns = txns.filter((t) => inRange(t, w.from, w.to));
+  const prevTxns = txns.filter((t) => inRange(t, prevW.from, prevW.to));
+
+  const byCat = (list: TxnWithCategory[]) => {
+    const map = new Map<string, number>();
+    for (const t of list) {
+      if (!isSpend(t)) continue;
+      const name = t.category?.name ?? "Uncategorised";
+      map.set(name, (map.get(name) ?? 0) + Math.abs(t.amountCents));
+    }
+    return map;
+  };
+  const cur = byCat(monthTxns);
+  const prev = byCat(prevTxns);
+  const categories = [...cur.entries()]
+    .map(([name, cents]) => ({ name, cents, prevCents: prev.get(name) ?? 0 }))
+    .sort((a, b) => b.cents - a.cents);
+
+  return {
+    label: w.from.toLocaleDateString("en-AU", { month: "long", year: "numeric" }),
+    from: w.from,
+    summary: summarise(monthTxns),
+    prevSummary: summarise(prevTxns),
+    categories,
+    transactionCount: monthTxns.length,
+  };
 }
 
 export async function getHabitsPage() {
