@@ -19,9 +19,11 @@ test.describe("Sage smoke suite", () => {
       "/subscriptions",
       "/bills",
       "/net-worth",
+      "/investments",
       "/debts",
       "/habits",
       "/reports",
+      "/tax",
       "/notifications",
       "/import",
       "/settings",
@@ -29,6 +31,42 @@ test.describe("Sage smoke suite", () => {
       const res = await page.goto(path);
       expect(res?.status(), `${path} should return 200`).toBe(200);
     }
+  });
+
+  test("tax centre marks a deduction and exports EOFY CSV", async ({ page, request }) => {
+    await page.goto("/tax");
+    const before = await page.getByText("Deductions tracked").locator("..").locator("p").nth(1).textContent();
+    const firstSuggestion = page.getByRole("button", { name: /^Mark .* as deductible$/ }).first();
+    if (await firstSuggestion.isVisible().catch(() => false)) {
+      await firstSuggestion.click();
+      await expect(async () => {
+        const after = await page.getByText("Deductions tracked").locator("..").locator("p").nth(1).textContent();
+        expect(after).not.toBe(before);
+      }).toPass();
+    }
+    const csv = await request.get("/api/export/tax");
+    expect(csv.status()).toBe(200);
+    expect(await csv.text()).toContain("Sage EOFY deduction export");
+  });
+
+  test("challenges can be joined and are evaluated live", async ({ page }) => {
+    await page.goto("/habits");
+    // Seeded Coffee Challenge is already in flight
+    await expect(page.getByRole("heading", { name: "Your challenges" })).toBeVisible();
+    await expect(page.getByText(/coffee cap used/)).toBeVisible();
+    // Join a new one (No Spend Week) unless already active
+    const joinButtons = page.getByRole("button", { name: "Start challenge" });
+    if ((await joinButtons.count()) > 0) {
+      await joinButtons.first().click();
+      await expect(page.getByRole("button", { name: "In progress" }).first()).toBeVisible();
+    }
+  });
+
+  test("investments page shows portfolio and allocation", async ({ page }) => {
+    await page.goto("/investments");
+    await expect(page.getByText("Portfolio value")).toBeVisible();
+    await expect(page.getByRole("cell", { name: "VAS" })).toBeVisible();
+    await expect(page.getByText("Australian shares", { exact: true })).toBeVisible();
   });
 
   test("manual transaction is added and auto-categorised", async ({ page }) => {
@@ -39,7 +77,7 @@ test.describe("Sage smoke suite", () => {
     await page.getByRole("button", { name: "Add transaction" }).click();
 
     // Appears in the list, auto-categorised as Coffee via the knowledge base
-    const row = page.getByRole("row", { name: new RegExp("E2e Cafe", "i") });
+    const row = page.getByRole("row", { name: /E2e Cafe/i }).first();
     await expect(row).toBeVisible();
     await expect(row).toContainText("Coffee");
     await expect(row).toContainText("$7.50");

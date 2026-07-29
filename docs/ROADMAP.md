@@ -17,10 +17,16 @@
 - ✅ Reports with month-on-month category comparison, print-to-PDF, CSV + full JSON export endpoints (`/reports`)
 - ✅ Settings with data-portability exports and the Phase-2 security surface (`/settings`)
 - ✅ Playwright E2E smoke suite in CI (7 flows incl. import dedupe and sync)
-- ⬜ Auth.js: passkeys, TOTP, sessions, device management (swap `getDemoUser` → session user)
+- ✅ Authentication & multi-user: register/login (scrypt + HMAC-signed httpOnly sessions), per-user data isolation, one-tap demo access, 401-guarded APIs; Auth.js/passkeys remain the production upgrade path (`src/lib/auth.ts`)
 - ⬜ Real CDR connection via Basiq/Frollo sandbox (consent UX, webhook ingestion)
 - ⬜ Postgres migration + RLS; Temporal/BullMQ workers; FCM/APNs delivery
 - ⬜ Receipt photo upload (storage + manual amount first)
+
+## Phase 3 — Intelligence & delight (in progress)
+
+- ✅ Investment tracking: holdings, portfolio value/returns, allocation by asset class, dividend history (`/investments`)
+- ✅ Tax Centre: AU financial-year deduction tracking with one-tap flagging, likely-deductible suggestions, EOFY CSV export (`/tax`)
+- ✅ Savings challenges made real: join/claim/abandon with progress judged live from transactions — the ledger is the referee (`src/lib/domain/challenges.ts`)
 
 ## Phase 3 — Intelligence & delight
 

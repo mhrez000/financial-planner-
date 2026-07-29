@@ -1,4 +1,4 @@
-import { getDemoUser } from "@/lib/data";
+import { getSessionUser } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { Card } from "@/components/ui";
 import { ImportClient } from "./ImportClient";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Import & Sync" };
 
 export default async function ImportPage() {
-  const user = await getDemoUser();
+  const user = await getSessionUser();
   const accounts = await prisma.account.findMany({
     where: { userId: user.id, type: { in: ["TRANSACTION", "SAVINGS", "CREDIT_CARD"] } },
     select: { id: true, name: true, institution: true, lastSyncedAt: true },

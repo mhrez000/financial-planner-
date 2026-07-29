@@ -1,12 +1,12 @@
 import { Download, Fingerprint, KeyRound, ShieldCheck, Trash2 } from "lucide-react";
-import { getDemoUser } from "@/lib/data";
+import { getSessionUser } from "@/lib/data";
 import { Badge, Card } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
-  const user = await getDemoUser();
+  const user = await getSessionUser();
 
   return (
     <>

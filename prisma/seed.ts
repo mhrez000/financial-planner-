@@ -4,6 +4,8 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { categorise } from "../src/lib/domain/categorise";
+import { DEFAULT_CATEGORIES } from "../src/lib/domain/categories";
+import { hashPassword } from "../src/lib/password";
 
 const prisma = new PrismaClient();
 
@@ -24,32 +26,7 @@ const jitter = (cents: number, pct: number) => Math.round(cents * (1 + (rand() *
 const NOW = new Date();
 const MONTHS_BACK = 8;
 
-const CATEGORIES: { name: string; group: string; icon: string }[] = [
-  { name: "Salary", group: "INCOME", icon: "banknote" },
-  { name: "Investment Income", group: "INCOME", icon: "trending-up" },
-  { name: "Groceries", group: "ESSENTIAL", icon: "shopping-cart" },
-  { name: "Mortgage", group: "ESSENTIAL", icon: "home" },
-  { name: "Rent", group: "ESSENTIAL", icon: "home" },
-  { name: "Utilities", group: "ESSENTIAL", icon: "zap" },
-  { name: "Phone & Internet", group: "ESSENTIAL", icon: "wifi" },
-  { name: "Insurance", group: "ESSENTIAL", icon: "shield" },
-  { name: "Fuel", group: "ESSENTIAL", icon: "fuel" },
-  { name: "Transport", group: "ESSENTIAL", icon: "bus" },
-  { name: "Medical", group: "ESSENTIAL", icon: "heart-pulse" },
-  { name: "Coffee", group: "LIFESTYLE", icon: "coffee" },
-  { name: "Dining", group: "LIFESTYLE", icon: "utensils" },
-  { name: "Fast Food", group: "LIFESTYLE", icon: "pizza" },
-  { name: "Takeaway", group: "LIFESTYLE", icon: "bike" },
-  { name: "Shopping", group: "LIFESTYLE", icon: "shopping-bag" },
-  { name: "Entertainment", group: "LIFESTYLE", icon: "clapperboard" },
-  { name: "Subscriptions", group: "LIFESTYLE", icon: "repeat" },
-  { name: "Health & Fitness", group: "LIFESTYLE", icon: "dumbbell" },
-  { name: "Home", group: "LIFESTYLE", icon: "hammer" },
-  { name: "Travel", group: "LIFESTYLE", icon: "plane" },
-  { name: "Investing", group: "FINANCIAL", icon: "line-chart" },
-  { name: "Savings Transfer", group: "FINANCIAL", icon: "piggy-bank" },
-  { name: "Other", group: "LIFESTYLE", icon: "circle" },
-];
+const CATEGORIES = DEFAULT_CATEGORIES;
 
 interface MerchantSpec {
   merchant: string;
@@ -109,7 +86,11 @@ async function main() {
   await prisma.netWorthSnapshot.deleteMany();
 
   const user = await prisma.user.create({
-    data: { email: "alex@example.com", name: "Alex Nguyen" },
+    data: {
+      email: "alex@example.com",
+      name: "Alex Nguyen",
+      passwordHash: hashPassword("demo1234"),
+    },
   });
 
   const categories = new Map<string, string>();
@@ -336,6 +317,39 @@ async function main() {
       }
     }
   }
+
+  // Investment holdings (prices manually refreshed; feed comes later)
+  await prisma.holding.createMany({
+    data: [
+      { userId: user.id, symbol: "VAS", name: "Vanguard Australian Shares ETF", assetClass: "AU_SHARES", units: 142, avgCostCents: 8730, lastPriceCents: 9415 },
+      { userId: user.id, symbol: "VGS", name: "Vanguard MSCI World ETF", assetClass: "INTL_SHARES", units: 96, avgCostCents: 10480, lastPriceCents: 12260 },
+      { userId: user.id, symbol: "NDQ", name: "Betashares Nasdaq 100 ETF", assetClass: "INTL_SHARES", units: 45, avgCostCents: 3620, lastPriceCents: 4510 },
+      { userId: user.id, symbol: "BTC", name: "Bitcoin", assetClass: "CRYPTO", units: 0.042, avgCostCents: 6_150_000_00, lastPriceCents: 6_930_000_00 },
+    ],
+  });
+
+  // Mark plausible work-related expenses as tax-deductible (phone, transport)
+  const deductibleCandidates = await prisma.transaction.findMany({
+    where: { userId: user.id, merchant: { in: ["TELSTRA MOBILE", "OPAL TRANSPORT NSW"] } },
+    take: 12,
+  });
+  await prisma.transaction.updateMany({
+    where: { id: { in: deductibleCandidates.map((t) => t.id) } },
+    data: { taxDeductible: true },
+  });
+
+  // An in-flight Coffee Challenge so the challenges UI shows live progress
+  const challengeStart = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() - 9);
+  await prisma.challenge.create({
+    data: {
+      userId: user.id,
+      type: "COFFEE_CHALLENGE",
+      startDate: challengeStart,
+      endDate: new Date(challengeStart.getTime() + 30 * 86400_000 - 1),
+      targetCents: 6000,
+      xp: 200,
+    },
+  });
 
   // Net worth snapshots — monthly, trending upward
   let assets = c(820000);

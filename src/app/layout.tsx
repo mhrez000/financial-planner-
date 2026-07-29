@@ -1,10 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
-import { Bell } from "lucide-react";
 import "./globals.css";
-import { Sidebar } from "@/components/shell/Sidebar";
-import { ThemeToggle } from "@/components/shell/ThemeToggle";
-import { getNotifications } from "@/lib/data";
 
 export const metadata: Metadata = {
   title: { default: "Sage — Money, mastered", template: "%s · Sage" },
@@ -29,59 +24,13 @@ try {
 } catch (e) {}
 `;
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // Badge count for the header bell. Never let a notification failure take
-  // down the whole shell.
-  const urgentCount = await getNotifications()
-    .then((n) => n.filter((x) => x.severity !== "info").length)
-    .catch(() => 0);
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en-AU" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body>
-        <a
-          href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-accent focus:px-3 focus:py-2 focus:text-white"
-        >
-          Skip to content
-        </a>
-        <Sidebar />
-        <div className="lg:pl-60">
-          <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-bg/85 px-4 py-3 backdrop-blur sm:px-8">
-            <div>
-              <p className="text-xs text-faint">
-                {new Date().toLocaleDateString("en-AU", {
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                })}
-              </p>
-              <p className="text-sm font-semibold">G&rsquo;day, Alex</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href="/notifications"
-                aria-label={`Notifications${urgentCount > 0 ? ` — ${urgentCount} need attention` : ""}`}
-                className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-surface text-muted transition-colors hover:text-ink"
-              >
-                <Bell size={16} aria-hidden />
-                {urgentCount > 0 && (
-                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-negative px-1 text-[9px] font-bold text-white">
-                    {urgentCount}
-                  </span>
-                )}
-              </Link>
-              <ThemeToggle />
-            </div>
-          </header>
-          <main id="main" className="mx-auto max-w-6xl space-y-6 px-4 py-6 pb-24 sm:px-8 lg:pb-8">
-            {children}
-          </main>
-        </div>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

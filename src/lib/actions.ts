@@ -2,15 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "./db";
-import { getDemoUser } from "./data";
+import { getSessionUser } from "./data";
 import { categorise } from "./domain/categorise";
 import { parseTransactionsCsv } from "./domain/csv";
 import { markDuplicates } from "./domain/dedupe";
 import { ingestTransactions, syncAccounts, type SyncResult } from "./bank/sync";
+import { CHALLENGE_DEFS } from "./domain/challenges";
 
 /** "Sync now" — runs the full bank pipeline against the demo CDR provider. */
 export async function syncNow(): Promise<SyncResult[]> {
-  const user = await getDemoUser();
+  const user = await getSessionUser();
   const results = await syncAccounts(user.id);
   revalidatePath("/", "layout");
   return results;
@@ -31,7 +32,7 @@ export interface CsvPreview {
 
 /** Parse + categorise + dedupe a CSV without importing — powers the preview table. */
 export async function previewCsv(text: string): Promise<CsvPreview> {
-  const user = await getDemoUser();
+  const user = await getSessionUser();
   const { rows, skipped } = parseTransactionsCsv(text);
   if (rows.length === 0) return { rows: [], skipped };
 
@@ -63,7 +64,7 @@ export async function importCsv(
   text: string,
   accountId: string,
 ): Promise<{ imported: number; duplicatesSkipped: number }> {
-  const user = await getDemoUser();
+  const user = await getSessionUser();
   const { rows } = parseTransactionsCsv(text);
   const result = await ingestTransactions(
     user.id,
@@ -76,7 +77,7 @@ export async function importCsv(
 
 /** Manual expense/income entry. Auto-categorises when no category chosen. */
 export async function addTransaction(formData: FormData) {
-  const user = await getDemoUser();
+  const user = await getSessionUser();
   const merchant = String(formData.get("merchant") ?? "").trim();
   const amount = Number(formData.get("amount"));
   const kind = String(formData.get("kind") ?? "expense");
@@ -120,7 +121,7 @@ export async function addTransaction(formData: FormData) {
 }
 
 export async function setTransactionCategory(txnId: string, categoryId: string) {
-  const user = await getDemoUser();
+  const user = await getSessionUser();
   await prisma.transaction.update({
     where: { id: txnId, userId: user.id },
     data: { categoryId: categoryId || null },
@@ -130,7 +131,7 @@ export async function setTransactionCategory(txnId: string, categoryId: string) 
 
 /** "Always categorise <pattern> as X" — the rules engine users train themselves. */
 export async function addCategoryRule(formData: FormData) {
-  const user = await getDemoUser();
+  const user = await getSessionUser();
   const pattern = String(formData.get("pattern") ?? "").trim();
   const categoryId = String(formData.get("categoryId") ?? "");
   if (!pattern || !categoryId) return;
@@ -163,8 +164,61 @@ export async function toggleHabitToday(habitId: string) {
   revalidatePath("/habits");
 }
 
+/** Tax Centre: flip the deductible flag on a transaction. */
+export async function toggleTaxDeductible(txnId: string) {
+  const user = await getSessionUser();
+  const txn = await prisma.transaction.findUnique({ where: { id: txnId, userId: user.id } });
+  if (!txn) return;
+  await prisma.transaction.update({
+    where: { id: txnId },
+    data: { taxDeductible: !txn.taxDeductible },
+  });
+  revalidatePath("/tax");
+}
+
+/** Join a savings challenge starting today. */
+export async function joinChallenge(type: string) {
+  const user = await getSessionUser();
+  const def = CHALLENGE_DEFS.find((d) => d.type === type);
+  if (!def) return;
+  const active = await prisma.challenge.findFirst({
+    where: { userId: user.id, type, status: "ACTIVE" },
+  });
+  if (active) return; // one at a time per challenge type
+
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start.getTime() + def.durationDays * 86400_000 - 1);
+
+  // The Coffee Challenge cap is personal: half of the last 30 days' coffee spend
+  let targetCents: number | null = null;
+  if (type === "COFFEE_CHALLENGE") {
+    const monthAgo = new Date(start.getTime() - 30 * 86400_000);
+    const coffee = await prisma.transaction.findMany({
+      where: { userId: user.id, date: { gte: monthAgo }, amountCents: { lt: 0 }, category: { name: "Coffee" } },
+    });
+    const recentSpend = coffee.reduce((a, t) => a + Math.abs(t.amountCents), 0);
+    targetCents = Math.max(500, Math.round(recentSpend / 2));
+  }
+
+  await prisma.challenge.create({
+    data: { userId: user.id, type, startDate: start, endDate: end, targetCents, xp: def.xp },
+  });
+  revalidatePath("/habits");
+}
+
+/** Claim a finished challenge (locks in the XP) or abandon an active one. */
+export async function resolveChallenge(challengeId: string, outcome: "COMPLETED" | "FAILED" | "ABANDONED") {
+  const user = await getSessionUser();
+  await prisma.challenge.update({
+    where: { id: challengeId, userId: user.id, status: "ACTIVE" },
+    data: { status: outcome },
+  });
+  revalidatePath("/habits");
+}
+
 export async function addGoalContribution(goalId: string, dollars: number) {
-  const user = await getDemoUser();
+  const user = await getSessionUser();
   if (!Number.isFinite(dollars) || dollars <= 0) return;
   await prisma.goal.update({
     where: { id: goalId, userId: user.id },

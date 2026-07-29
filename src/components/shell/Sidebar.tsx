@@ -7,10 +7,12 @@ import {
   BarChart3,
   Bell,
   CalendarClock,
+  CandlestickChart,
   CreditCard,
   FileText,
   Flame,
   Import,
+  Landmark,
   LayoutDashboard,
   Leaf,
   LineChart,
@@ -30,6 +32,7 @@ const NAV = [
   { href: "/subscriptions", label: "Subscriptions", icon: Repeat },
   { href: "/bills", label: "Bills", icon: CalendarClock },
   { href: "/net-worth", label: "Net Worth", icon: LineChart },
+  { href: "/investments", label: "Investments", icon: CandlestickChart },
   { href: "/debts", label: "Debt Planner", icon: CreditCard },
   { href: "/habits", label: "Habits", icon: Flame },
 ];
@@ -37,6 +40,7 @@ const NAV = [
 const TOOLS = [
   { href: "/import", label: "Import & Sync", icon: Import },
   { href: "/reports", label: "Reports", icon: FileText },
+  { href: "/tax", label: "Tax Centre", icon: Landmark },
   { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

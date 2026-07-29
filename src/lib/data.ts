@@ -1,9 +1,8 @@
 /**
  * Server-side data access. Every page reads through these functions, which
- * combine Prisma queries with the pure domain engines. In the multi-user
- * phase, `getDemoUser` is replaced by the authenticated session user and
- * every query keeps its userId scoping — that constraint is already enforced
- * here so auth can be added without touching call sites.
+ * combine Prisma queries with the pure domain engines. All queries are scoped
+ * to the authenticated session user; API routes use `getSessionUserOrNull`
+ * and return 401 instead of redirecting.
  */
 
 import { endOfMonth, startOfMonth, subMonths } from "date-fns";
@@ -14,11 +13,27 @@ import { forecastEndOfMonth, forecastGoal } from "./domain/forecast";
 import { generateInsights, type Insight } from "./domain/insights";
 import { generateNotifications } from "./domain/notifications";
 import { median } from "./domain/money";
+import { getSessionUserId } from "./auth";
+import { redirect } from "next/navigation";
+import { summarisePortfolio } from "./domain/portfolio";
+import { currentFinancialYear, financialYear } from "./domain/tax";
+import { CHALLENGE_DEFS, evaluateChallenge, type ChallengeType } from "./domain/challenges";
 
-export async function getDemoUser() {
-  const user = await prisma.user.findFirst();
-  if (!user) throw new Error("Database not seeded — run `npm run db:reset`");
-  return user;
+/** The authenticated user, or a redirect to /login. Every query scopes to this. */
+export async function getSessionUser() {
+  const userId = getSessionUserId();
+  if (userId) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (user) return user;
+  }
+  redirect("/login");
+}
+
+/** Session user for API routes, which return 401 instead of redirecting. */
+export async function getSessionUserOrNull() {
+  const userId = getSessionUserId();
+  if (!userId) return null;
+  return prisma.user.findUnique({ where: { id: userId } });
 }
 
 type TxnWithCategory = Awaited<ReturnType<typeof getAllTransactions>>[number];
@@ -66,7 +81,7 @@ function summarise(txns: TxnWithCategory[]): SpendSummary {
 }
 
 export async function getSubscriptions(): Promise<RecurringSeries[]> {
-  const user = await getDemoUser();
+  const user = await getSessionUser();
   const txns = await getAllTransactions(user.id);
   // Subscriptions = recurring spends that aren't loan repayments or savings automation
   const candidates = txns.filter(
@@ -79,7 +94,7 @@ export async function getSubscriptions(): Promise<RecurringSeries[]> {
 }
 
 export async function getDashboard() {
-  const user = await getDemoUser();
+  const user = await getSessionUser();
   const now = new Date();
   const txns = await getAllTransactions(user.id);
 
@@ -200,7 +215,7 @@ export async function getDashboard() {
 }
 
 export async function getTransactionsPage(query?: string, categoryId?: string) {
-  const user = await getDemoUser();
+  const user = await getSessionUser();
   const txns = await prisma.transaction.findMany({
     where: {
       userId: user.id,
@@ -221,7 +236,7 @@ export async function getTransactionsPage(query?: string, categoryId?: string) {
 }
 
 export async function getAnalytics() {
-  const user = await getDemoUser();
+  const user = await getSessionUser();
   const now = new Date();
   const txns = await getAllTransactions(user.id);
 
@@ -299,7 +314,7 @@ export async function getAnalytics() {
 }
 
 export async function getDebtsPage() {
-  const user = await getDemoUser();
+  const user = await getSessionUser();
   return prisma.debt.findMany({ where: { userId: user.id }, orderBy: { balanceCents: "desc" } });
 }
 
@@ -337,7 +352,7 @@ export async function getNotifications() {
 
 /** Month summary for the Reports page. offset 0 = current month. */
 export async function getMonthlyReport(offset: number) {
-  const user = await getDemoUser();
+  const user = await getSessionUser();
   const now = new Date();
   const txns = await getAllTransactions(user.id);
   const w = monthWindow(offset, now);
@@ -370,8 +385,100 @@ export async function getMonthlyReport(offset: number) {
   };
 }
 
+export async function getInvestmentsPage() {
+  const user = await getSessionUser();
+  const holdings = await prisma.holding.findMany({ where: { userId: user.id } });
+  const dividends = await prisma.transaction.findMany({
+    where: { userId: user.id, category: { name: "Investment Income" } },
+    orderBy: { date: "desc" },
+    take: 8,
+  });
+  const superAccounts = await prisma.account.findMany({ where: { userId: user.id, type: "SUPER" } });
+  return {
+    portfolio: summarisePortfolio(holdings),
+    priceAsOf: holdings[0]?.priceAsOf ?? null,
+    dividends,
+    superCents: superAccounts.reduce((a, s) => a + s.balanceCents, 0),
+  };
+}
+
+export async function getTaxPage(fyEndYear?: number) {
+  const user = await getSessionUser();
+  const now = new Date();
+  const fy = fyEndYear ? financialYear(fyEndYear) : currentFinancialYear(now);
+  const [deductible, candidates] = await Promise.all([
+    prisma.transaction.findMany({
+      where: { userId: user.id, taxDeductible: true, date: { gte: fy.from, lte: fy.to } },
+      include: { category: true },
+      orderBy: { date: "desc" },
+    }),
+    // Likely-deductible suggestions: common work-related categories, not yet marked
+    prisma.transaction.findMany({
+      where: {
+        userId: user.id,
+        taxDeductible: false,
+        amountCents: { lt: 0 },
+        date: { gte: fy.from, lte: fy.to },
+        category: { name: { in: ["Education", "Phone & Internet", "Medical", "Transport"] } },
+      },
+      include: { category: true },
+      orderBy: { date: "desc" },
+      take: 6,
+    }),
+  ]);
+  const byCategory = new Map<string, number>();
+  for (const t of deductible) {
+    const name = t.category?.name ?? "Other";
+    byCategory.set(name, (byCategory.get(name) ?? 0) + Math.abs(t.amountCents));
+  }
+  const incomeTxns = await prisma.transaction.findMany({
+    where: { userId: user.id, amountCents: { gt: 0 }, date: { gte: fy.from, lte: fy.to }, category: { group: "INCOME" } },
+  });
+  return {
+    fy,
+    deductible,
+    candidates,
+    totalDeductibleCents: deductible.reduce((a, t) => a + Math.abs(t.amountCents), 0),
+    incomeCents: incomeTxns.reduce((a, t) => a + t.amountCents, 0),
+    byCategory: [...byCategory.entries()].map(([name, cents]) => ({ name, cents })).sort((a, b) => b.cents - a.cents),
+  };
+}
+
+export async function getChallengesPage() {
+  const user = await getSessionUser();
+  const now = new Date();
+  const challenges = await prisma.challenge.findMany({
+    where: { userId: user.id },
+    orderBy: { startDate: "desc" },
+  });
+  const oldest = challenges.reduce<Date | null>((min, c) => (!min || c.startDate < min ? c.startDate : min), null);
+  const txns = oldest
+    ? await prisma.transaction.findMany({
+        where: { userId: user.id, date: { gte: oldest } },
+        include: { category: true },
+      })
+    : [];
+  const challengeTxns = txns.map((t) => ({
+    date: t.date,
+    amountCents: t.amountCents,
+    categoryName: t.category?.name ?? null,
+    categoryGroup: t.category?.group ?? null,
+  }));
+
+  return challenges.map((c) => ({
+    ...c,
+    def: CHALLENGE_DEFS.find((d) => d.type === c.type)!,
+    state: evaluateChallenge(
+      c.type as ChallengeType,
+      { start: c.startDate, end: c.endDate, targetCents: c.targetCents },
+      challengeTxns,
+      now,
+    ),
+  }));
+}
+
 export async function getHabitsPage() {
-  const user = await getDemoUser();
+  const user = await getSessionUser();
   const habits = await prisma.habit.findMany({
     where: { userId: user.id },
     include: { logs: { orderBy: { date: "desc" } } },

@@ -1,11 +1,12 @@
-import { getDemoUser } from "@/lib/data";
+import { getSessionUserOrNull } from "@/lib/data";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 /** Complete account export as JSON (GDPR/APP-style data portability). */
 export async function GET() {
-  const user = await getDemoUser();
+  const user = await getSessionUserOrNull();
+  if (!user) return new Response("Unauthorized", { status: 401 });
   const [accounts, transactions, categories, rules, budgets, goals, bills, debts, habits] =
     await Promise.all([
       prisma.account.findMany({ where: { userId: user.id } }),
