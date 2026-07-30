@@ -11,7 +11,7 @@ import { CHALLENGE_DEFS } from "./domain/challenges";
 import { ALLOWED_RECEIPT_TYPES, MAX_RECEIPT_BYTES, receiptKeyFor, storage } from "./storage";
 import { generateInviteCode, normaliseInviteCode } from "./domain/household";
 import { ruleBasedProvider, type CoachAnswer } from "./domain/coach";
-import { getCoachContext } from "./data";
+import { getCoachContext, REVIEW_HABIT_NAME } from "./data";
 
 /**
  * Sage Coach Q&A. The rule-based provider answers offline from the user's
@@ -248,6 +248,26 @@ export async function resolveChallenge(challengeId: string, outcome: "COMPLETED"
     where: { id: challengeId, userId: user.id, status: "ACTIVE" },
     data: { status: outcome },
   });
+  revalidatePath("/habits");
+}
+
+/** Log this week's Money Date as done (find-or-create the review habit). */
+export async function completeWeeklyReview() {
+  const user = await getSessionUser();
+  let habit = await prisma.habit.findFirst({
+    where: { userId: user.id, name: REVIEW_HABIT_NAME },
+  });
+  habit ??= await prisma.habit.create({
+    data: { userId: user.id, name: REVIEW_HABIT_NAME, icon: "calendar-check" },
+  });
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  await prisma.habitLog.upsert({
+    where: { habitId_date: { habitId: habit.id, date: today } },
+    update: {},
+    create: { habitId: habit.id, date: today },
+  });
+  revalidatePath("/review");
   revalidatePath("/habits");
 }
 

@@ -441,6 +441,50 @@ export async function getCoachContext(): Promise<CoachContext> {
   };
 }
 
+export const REVIEW_HABIT_NAME = "Weekly money review";
+
+/** Everything the guided weekly review (Money Date) needs, precomputed. */
+export async function getWeeklyReview() {
+  const d = await getDashboard();
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 86400_000);
+  const weekAhead = new Date(now.getTime() + 7 * 86400_000);
+
+  const weekTxns = await prisma.transaction.findMany({
+    where: { userId: d.user.id, date: { gte: weekAgo } },
+    include: { category: true },
+    orderBy: { date: "desc" },
+  });
+  const week = summarise(weekTxns);
+  const largest = weekTxns
+    .filter((t) => isSpend(t))
+    .sort((a, b) => a.amountCents - b.amountCents)
+    .slice(0, 3);
+
+  const habits = await getHabitsPage();
+  const bestStreak = habits.reduce<{ name: string; streak: number } | null>(
+    (best, h) => (h.streak > (best?.streak ?? 0) ? { name: h.name, streak: h.streak } : best),
+    null,
+  );
+  const reviewHabit = habits.find((h) => h.name === REVIEW_HABIT_NAME);
+  const completedThisWeek =
+    reviewHabit?.logs.some((l) => new Date(l.date) >= weekAgo) ?? false;
+
+  return {
+    week,
+    largest,
+    hotBudgets: d.budgets.filter((b) => !b.onTrack),
+    priceRises: d.subscriptions.filter((s) => s.priceIncreased),
+    billsNext7: d.bills.filter((b) => b.nextDueDate <= weekAhead && b.nextDueDate >= now),
+    safeToSpend: d.safeToSpend,
+    celebrations: d.insights.filter((i) => i.severity === "celebrate"),
+    bestStreak,
+    goals: d.goals,
+    completedThisWeek,
+    reviewStreakWeeks: reviewHabit ? reviewHabit.totalLogs : 0,
+  };
+}
+
 export async function getHouseholdPage() {
   const user = await getSessionUser();
   const myAccounts = await prisma.account.findMany({

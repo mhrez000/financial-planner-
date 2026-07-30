@@ -31,6 +31,8 @@
 - ✅ Safe-to-spend headline: cash − 14-day bills − remaining goal commitments, with a line-item breakdown (`src/lib/domain/safeToSpend.ts`)
 - ✅ Receipt attachments: per-transaction upload (image/PDF, 5MB) behind a `FileStorage` interface (local disk → S3/R2 swap), auth-checked serving route
 - ✅ PWA manifest + icon — installable on mobile home screens
+- ✅ Money Date (/review): the guided weekly review ritual — wins → watch-outs → week-ahead plan, computed from live data, ending in a logged habit streak
+- ✅ Production deployment: multi-stage Dockerfile (standalone, non-root), docker-compose with Postgres, maintained Postgres schema + generated init migration with a CI drift guard, /api/health endpoint, docs/DEPLOYMENT.md (Docker/Fly/Railway + Vercel paths)
 
 ## Phase 3 — Intelligence & delight
 

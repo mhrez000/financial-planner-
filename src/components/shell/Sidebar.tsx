@@ -6,6 +6,7 @@ import clsx from "clsx";
 import {
   BarChart3,
   Bell,
+  CalendarCheck,
   CalendarClock,
   CandlestickChart,
   CreditCard,
@@ -28,6 +29,7 @@ import {
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/coach", label: "Coach", icon: Sprout },
+  { href: "/review", label: "Weekly Review", icon: CalendarCheck },
   { href: "/transactions", label: "Transactions", icon: Wallet },
   { href: "/budgets", label: "Budgets", icon: PiggyBank },
   { href: "/goals", label: "Goals", icon: Target },

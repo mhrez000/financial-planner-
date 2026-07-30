@@ -92,6 +92,28 @@ test.describe("Sage smoke suite", () => {
     }
   });
 
+  test("money date walks wins → watch-outs → plan and logs the streak", async ({ page }) => {
+    await page.goto("/review");
+    await expect(page.getByRole("heading", { name: "Your wins" })).toBeVisible();
+    await expect(page.getByText(/You saved/)).toBeVisible();
+    await page.getByRole("button", { name: "Next" }).click();
+    await expect(page.getByRole("heading", { name: "Worth a look" })).toBeVisible();
+    await page.getByRole("button", { name: "Next" }).click();
+    await expect(page.getByRole("heading", { name: "The week ahead" })).toBeVisible();
+    await expect(page.getByText(/Safe to spend/)).toBeVisible();
+    await page.getByRole("button", { name: "Complete Money Date" }).click();
+    await expect(page.getByRole("heading", { name: "Money Date complete!" })).toBeVisible();
+    // Revisiting within the week shows the already-done state
+    await page.goto("/review");
+    await expect(page.getByRole("heading", { name: "This week's review is done" })).toBeVisible();
+  });
+
+  test("health endpoint reports db status", async ({ request }) => {
+    const res = await request.get("/api/health");
+    expect(res.status()).toBe(200);
+    expect(await res.json()).toEqual({ status: "ok", db: "up" });
+  });
+
   test("seeded household combines only shared finances", async ({ page }) => {
     await page.goto("/household");
     await expect(page.getByRole("heading", { name: "The Nguyen–Chen household" })).toBeVisible();

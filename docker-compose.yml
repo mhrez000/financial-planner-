@@ -1,0 +1,33 @@
+# Local production-parity stack: Sage + PostgreSQL.
+#   SESSION_SECRET=$(openssl rand -hex 32) docker compose up --build
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sage
+      POSTGRES_PASSWORD: sage-local-only
+      POSTGRES_DB: sage
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sage"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://sage:sage-local-only@db:5432/sage
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET (openssl rand -hex 32)}
+    volumes:
+      - receipts:/app/var/receipts
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  receipts:

@@ -34,6 +34,8 @@ This repository contains the production-shaped web application (Next.js App Rout
 | **Safe to spend** | The one number that answers "can I spend right now?": cash − upcoming bills − remaining goal commitments, fully itemised |
 | **Receipts** | Attach photos/PDFs to transactions behind a storage abstraction (local → S3/R2), auth-checked serving |
 | **Household mode** | Invite-code households with per-account sharing — privacy enforced in the engine, combined finances, per-member contributions (partner login: `sam@example.com` / `demo1234`) |
+| **Money Date** | Guided weekly review ritual (wins → watch-outs → plan) computed from live data, ending in a logged streak |
+| **Production-ready** | Dockerfile + compose with Postgres, schema drift guard in CI, health endpoint, [deployment guide](docs/DEPLOYMENT.md) |
 
 All domain logic lives in pure, unit-tested modules under `src/lib/domain/` — shared verbatim with mobile and background jobs.
 
@@ -69,4 +71,5 @@ src/app/               one route per feature area
 - [Architecture](docs/ARCHITECTURE.md) — stack trade-offs, Open Banking (CDR) integration, mobile strategy, scaling path
 - [Design system](docs/DESIGN-SYSTEM.md) — tokens, principles, accessibility
 - [Security & privacy](docs/SECURITY.md)
+- [Deployment](docs/DEPLOYMENT.md) — Docker/Postgres and Vercel paths, production checklist
 - [Roadmap](docs/ROADMAP.md) — phased build order and future features

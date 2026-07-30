@@ -15,7 +15,9 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "rm -f prisma/dev.db && prisma db push && tsx prisma/seed.ts",
     "postinstall": "prisma generate",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "db:migration:postgres": "prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.postgres.prisma --script > prisma/migrations-postgres/0001_init/migration.sql",
+    "check:schemas": "node scripts/check-schema-sync.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

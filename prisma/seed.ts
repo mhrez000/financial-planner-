@@ -310,8 +310,11 @@ async function main() {
   ];
   for (const spec of habitSpecs.slice(0, 3)) {
     const habit = await prisma.habit.create({ data: { userId: user.id, name: spec.name, icon: spec.icon } });
-    // Log a plausible streak over the past 30 days with ~85% adherence
-    for (let d = 30; d >= 1; d--) {
+    // Log a plausible streak over the past 30 days with ~85% adherence.
+    // The weekly review habit stays unlogged for the current week so the
+    // Money Date flow is live in the demo.
+    const minDaysAgo = spec.name === "Weekly money review" ? 8 : 1;
+    for (let d = 30; d >= minDaysAgo; d--) {
       const date = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() - d);
       if (spec.daysActive.includes(date.getDay()) && rand() < 0.85) {
         await prisma.habitLog.create({ data: { habitId: habit.id, date } });
