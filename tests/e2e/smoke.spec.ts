@@ -4,10 +4,40 @@ test.describe("Sage smoke suite", () => {
   test("dashboard answers 'how am I doing?'", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Financial health" })).toBeVisible();
+    await expect(page.getByText("Safe to spend")).toBeVisible();
     await expect(page.getByText("Net worth", { exact: false }).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Your coach" })).toBeVisible();
     // Score ring is accessible
     await expect(page.getByRole("img", { name: /Financial health score \d+ out of 100/ })).toBeVisible();
+  });
+
+  test("coach answers affordability questions from real data", async ({ page }) => {
+    await page.goto("/coach");
+    await expect(page.getByText(/G'day Alex/)).toBeVisible();
+    await page.getByLabel("Ask the coach a question").fill("Can I afford a $200 dinner?");
+    await page.getByLabel("Send question").click();
+    await expect(page.getByText(/safe-to-spend/).first()).toBeVisible();
+    await expect(page.getByText("Cash on hand", { exact: false })).toBeVisible();
+    // Second turn: health-score intent
+    await page.getByLabel("Ask the coach a question").fill("How do I improve my health score?");
+    await page.getByLabel("Send question").click();
+    await expect(page.getByText(/\/100/).first()).toBeVisible();
+  });
+
+  test("receipt attaches to a transaction and is served back", async ({ page }) => {
+    await page.goto("/transactions");
+    // 1x1 PNG
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    await page.getByLabel("Attach receipt").first().setInputFiles({ name: "receipt.png", mimeType: "image/png", buffer: png });
+    const viewLink = page.getByLabel("View receipt").first();
+    await expect(viewLink).toBeVisible();
+    const href = await viewLink.getAttribute("href");
+    const res = await page.request.get(href!);
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"]).toBe("image/png");
   });
 
   test("every feature page renders", async ({ page }) => {

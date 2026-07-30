@@ -1,4 +1,5 @@
 import { Search } from "lucide-react";
+import { ReceiptCell } from "./ReceiptCell";
 import { getTransactionsPage } from "@/lib/data";
 import { addTransaction, addCategoryRule } from "@/lib/actions";
 import { formatAUD } from "@/lib/domain/money";
@@ -105,7 +106,10 @@ export default async function TransactionsPage({
                 <th className="py-2 pr-3 font-medium">Merchant</th>
                 <th className="py-2 pr-3 font-medium">Category</th>
                 <th className="py-2 pr-3 font-medium">Account</th>
-                <th className="py-2 text-right font-medium">Amount</th>
+                <th className="py-2 pr-3 text-right font-medium">Amount</th>
+                <th className="py-2 font-medium">
+                  <span className="sr-only">Receipt</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -119,8 +123,11 @@ export default async function TransactionsPage({
                   </td>
                   <td className="py-2.5 pr-3 text-xs text-muted">{t.category?.name ?? "—"}</td>
                   <td className="py-2.5 pr-3 text-xs text-muted">{t.account.name}</td>
-                  <td className={`py-2.5 text-right tabular-nums font-medium ${t.amountCents > 0 ? "text-positive" : ""}`}>
+                  <td className={`py-2.5 pr-3 text-right tabular-nums font-medium ${t.amountCents > 0 ? "text-positive" : ""}`}>
                     {formatAUD(t.amountCents, { signed: true })}
+                  </td>
+                  <td className="py-2.5">
+                    <ReceiptCell txnId={t.id} hasReceipt={t.receiptKey !== null} />
                   </td>
                 </tr>
               ))}

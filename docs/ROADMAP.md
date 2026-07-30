@@ -27,6 +27,10 @@
 - ✅ Investment tracking: holdings, portfolio value/returns, allocation by asset class, dividend history (`/investments`)
 - ✅ Tax Centre: AU financial-year deduction tracking with one-tap flagging, likely-deductible suggestions, EOFY CSV export (`/tax`)
 - ✅ Savings challenges made real: join/claim/abandon with progress judged live from transactions — the ledger is the referee (`src/lib/domain/challenges.ts`)
+- ✅ Sage Coach chat (/coach): intent-based Q&A grounded in the real engines (affordability vs safe-to-spend, score improvement, goal what-ifs, payday plans, subscription audits) behind a `CoachProvider` seam the Claude-backed provider implements in production (`src/lib/domain/coach.ts`)
+- ✅ Safe-to-spend headline: cash − 14-day bills − remaining goal commitments, with a line-item breakdown (`src/lib/domain/safeToSpend.ts`)
+- ✅ Receipt attachments: per-transaction upload (image/PDF, 5MB) behind a `FileStorage` interface (local disk → S3/R2 swap), auth-checked serving route
+- ✅ PWA manifest + icon — installable on mobile home screens
 
 ## Phase 3 — Intelligence & delight
 

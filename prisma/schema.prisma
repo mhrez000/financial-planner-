@@ -98,6 +98,8 @@ model Transaction {
   tags        String    @default("") // comma-separated; normalised table in Postgres phase
   // Tax Centre: marked work-related/deductible for EOFY reporting
   taxDeductible Boolean @default(false)
+  // Storage key of an attached receipt image (see src/lib/storage.ts)
+  receiptKey String?
   // Set when the recurring-detection engine identifies this as part of a series.
   recurringKey String?
 

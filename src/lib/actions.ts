@@ -8,6 +8,20 @@ import { parseTransactionsCsv } from "./domain/csv";
 import { markDuplicates } from "./domain/dedupe";
 import { ingestTransactions, syncAccounts, type SyncResult } from "./bank/sync";
 import { CHALLENGE_DEFS } from "./domain/challenges";
+import { ALLOWED_RECEIPT_TYPES, MAX_RECEIPT_BYTES, receiptKeyFor, storage } from "./storage";
+import { ruleBasedProvider, type CoachAnswer } from "./domain/coach";
+import { getCoachContext } from "./data";
+
+/**
+ * Sage Coach Q&A. The rule-based provider answers offline from the user's
+ * real numbers; a Claude-backed provider slots in here (same interface, same
+ * context object — aggregates only, never raw transactions).
+ */
+export async function askCoach(question: string): Promise<CoachAnswer> {
+  const trimmed = question.trim().slice(0, 300);
+  const ctx = await getCoachContext();
+  return ruleBasedProvider.ask(trimmed, ctx);
+}
 
 /** "Sync now" — runs the full bank pipeline against the demo CDR provider. */
 export async function syncNow(): Promise<SyncResult[]> {
@@ -162,6 +176,25 @@ export async function toggleHabitToday(habitId: string) {
     await prisma.habitLog.create({ data: { habitId, date: today } });
   }
   revalidatePath("/habits");
+}
+
+/** Attach a receipt photo/PDF to a transaction (5MB max, image or PDF). */
+export async function attachReceipt(txnId: string, formData: FormData): Promise<{ error: string | null }> {
+  const user = await getSessionUser();
+  const file = formData.get("receipt");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose a file first." };
+  if (file.size > MAX_RECEIPT_BYTES) return { error: "Receipts are capped at 5MB." };
+  if (!ALLOWED_RECEIPT_TYPES.includes(file.type)) return { error: "JPEG, PNG, WebP or PDF only." };
+
+  const txn = await prisma.transaction.findUnique({ where: { id: txnId, userId: user.id } });
+  if (!txn) return { error: "Transaction not found." };
+
+  const key = receiptKeyFor(user.id, txnId, file.type);
+  if (!key) return { error: "Unsupported file type." };
+  await storage.put(key, { bytes: Buffer.from(await file.arrayBuffer()), contentType: file.type });
+  await prisma.transaction.update({ where: { id: txnId }, data: { receiptKey: key } });
+  revalidatePath("/transactions");
+  return { error: null };
 }
 
 /** Tax Centre: flip the deductible flag on a transaction. */

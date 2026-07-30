@@ -5,6 +5,8 @@ export const metadata: Metadata = {
   title: { default: "Sage — Money, mastered", template: "%s · Sage" },
   description:
     "A premium personal finance platform that helps you spend smarter, save more, and build lasting wealth.",
+  manifest: "/manifest.webmanifest",
+  icons: { icon: "/icon.svg" },
 };
 
 export const viewport: Viewport = {

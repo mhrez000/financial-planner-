@@ -30,6 +30,9 @@ This repository contains the production-shaped web application (Next.js App Rout
 | **Investments** | Holdings with returns, asset-class allocation, dividend history |
 | **Tax Centre** | AU financial-year deduction tracking, one-tap flagging, EOFY CSV export |
 | **Challenges** | Join/claim savings challenges judged live from real transactions |
+| **Sage Coach chat** | Conversational Q&A grounded in the real engines — affordability checks against safe-to-spend, goal what-ifs, payday plans — with a provider seam for the Claude layer |
+| **Safe to spend** | The one number that answers "can I spend right now?": cash − upcoming bills − remaining goal commitments, fully itemised |
+| **Receipts** | Attach photos/PDFs to transactions behind a storage abstraction (local → S3/R2), auth-checked serving |
 
 All domain logic lives in pure, unit-tested modules under `src/lib/domain/` — shared verbatim with mobile and background jobs.
 

@@ -19,12 +19,14 @@ import {
   PiggyBank,
   Repeat,
   Settings,
+  Sprout,
   Target,
   Wallet,
 } from "lucide-react";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/coach", label: "Coach", icon: Sprout },
   { href: "/transactions", label: "Transactions", icon: Wallet },
   { href: "/budgets", label: "Budgets", icon: PiggyBank },
   { href: "/goals", label: "Goals", icon: Target },

@@ -18,6 +18,8 @@ import { redirect } from "next/navigation";
 import { summarisePortfolio } from "./domain/portfolio";
 import { currentFinancialYear, financialYear } from "./domain/tax";
 import { CHALLENGE_DEFS, evaluateChallenge, type ChallengeType } from "./domain/challenges";
+import { computeSafeToSpend } from "./domain/safeToSpend";
+import type { CoachContext } from "./domain/coach";
 
 /** The authenticated user, or a redirect to /login. Every query scopes to this. */
 export async function getSessionUser() {
@@ -193,7 +195,18 @@ export async function getDashboard() {
     orderBy: { date: "asc" },
   });
 
+  const fortnight = new Date(now.getTime() + 14 * 86400_000);
+  const safeToSpend = computeSafeToSpend({
+    cashCents,
+    upcomingBills: bills
+      .filter((b) => b.nextDueDate <= fortnight)
+      .map((b) => ({ name: b.name, amountCents: b.amountCents })),
+    goals: goals.map((g) => ({ name: g.name, monthlyContribCents: g.monthlyContribCents })),
+    savedThisMonthCents: curSummary.savedCents,
+  });
+
   return {
+    safeToSpend,
     user,
     accounts,
     cashCents,
@@ -382,6 +395,48 @@ export async function getMonthlyReport(offset: number) {
     prevSummary: summarise(prevTxns),
     categories,
     transactionCount: monthTxns.length,
+  };
+}
+
+/** Everything the coach needs — aggregates and insight objects only. */
+export async function getCoachContext(): Promise<CoachContext> {
+  const d = await getDashboard();
+  const spendByCat = new Map<string, number>();
+  const now = new Date();
+  const monthStart = startOfMonth(now);
+  const txns = await prisma.transaction.findMany({
+    where: { userId: d.user.id, date: { gte: monthStart }, amountCents: { lt: 0 } },
+    include: { category: true },
+  });
+  for (const t of txns) {
+    if (t.category?.group === "FINANCIAL") continue;
+    const name = t.category?.name ?? "Uncategorised";
+    spendByCat.set(name, (spendByCat.get(name) ?? 0) + Math.abs(t.amountCents));
+  }
+
+  return {
+    now,
+    firstName: d.user.name.split(" ")[0],
+    cashCents: d.cashCents,
+    safeToSpend: d.safeToSpend,
+    health: d.health,
+    insights: d.insights,
+    goals: d.goals.map((g) => ({
+      name: g.name,
+      targetCents: g.targetCents,
+      savedCents: g.savedCents,
+      monthlyContribCents: g.monthlyContribCents,
+      forecast: g.forecast,
+    })),
+    budgets: d.budgets.map((b) => ({ name: b.category.name, amountCents: b.amountCents, spentCents: b.spentCents })),
+    subscriptions: d.subscriptions,
+    monthlyIncomeCents: d.prevSummary.incomeCents,
+    monthlySpendCents: d.prevSummary.spendCents,
+    savingsRate: d.prevSummary.incomeCents > 0 ? d.prevSummary.savedCents / d.prevSummary.incomeCents : 0,
+    topCategories: [...spendByCat.entries()]
+      .map(([name, cents]) => ({ name, cents }))
+      .sort((a, b) => b.cents - a.cents),
+    projectedEomCents: d.eom.projectedBalanceCents,
   };
 }
 

@@ -42,6 +42,12 @@ export default async function DashboardPage() {
 
         <Card className="lg:col-span-2">
           <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3">
+            <Stat
+              label="Safe to spend"
+              value={formatAUD(d.safeToSpend.safeCents, { compact: true })}
+              hint="After bills & goal commitments"
+              tone={d.safeToSpend.safeCents >= 0 ? "positive" : "negative"}
+            />
             <Stat label="Net worth" value={formatAUD(d.netWorthCents, { compact: true })} hint="All accounts" tone="positive" />
             <Stat label="Total cash" value={formatAUD(d.cashCents)} hint="Everyday + savings" />
             <Stat
@@ -51,11 +57,6 @@ export default async function DashboardPage() {
               tone={surplus >= 0 ? "neutral" : "negative"}
             />
             <Stat label="Saved this month" value={formatAUD(d.curSummary.savedCents)} hint="Transfers + investing" tone="positive" />
-            <Stat
-              label="Bills due"
-              value={formatAUD(d.billsDueThisMonth.reduce((a, b) => a + b.amountCents, 0))}
-              hint={`${d.billsDueThisMonth.length} before month end`}
-            />
             <Stat
               label="Projected month end"
               value={formatAUD(d.eom.projectedBalanceCents, { compact: true })}
