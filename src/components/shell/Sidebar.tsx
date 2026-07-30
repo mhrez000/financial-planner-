@@ -21,6 +21,7 @@ import {
   Settings,
   Sprout,
   Target,
+  Users,
   Wallet,
 } from "lucide-react";
 
@@ -37,6 +38,7 @@ const NAV = [
   { href: "/investments", label: "Investments", icon: CandlestickChart },
   { href: "/debts", label: "Debt Planner", icon: CreditCard },
   { href: "/habits", label: "Habits", icon: Flame },
+  { href: "/household", label: "Household", icon: Users },
 ];
 
 const TOOLS = [

@@ -92,6 +92,16 @@ test.describe("Sage smoke suite", () => {
     }
   });
 
+  test("seeded household combines only shared finances", async ({ page }) => {
+    await page.goto("/household");
+    await expect(page.getByRole("heading", { name: "The Nguyen–Chen household" })).toBeVisible();
+    await expect(page.getByText("Sam Chen")).toBeVisible();
+    await expect(page.getByText("DEMO2345")).toBeVisible();
+    // Alex's saver is private: listed under "Your account sharing" but not shared
+    const saverRow = page.getByRole("listitem").filter({ hasText: "NetBank Saver" });
+    await expect(saverRow.getByRole("button", { name: /Share NetBank Saver/ })).toBeVisible();
+  });
+
   test("investments page shows portfolio and allocation", async ({ page }) => {
     await page.goto("/investments");
     await expect(page.getByText("Portfolio value")).toBeVisible();

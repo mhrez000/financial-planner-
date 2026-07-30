@@ -20,6 +20,7 @@ import { currentFinancialYear, financialYear } from "./domain/tax";
 import { CHALLENGE_DEFS, evaluateChallenge, type ChallengeType } from "./domain/challenges";
 import { computeSafeToSpend } from "./domain/safeToSpend";
 import type { CoachContext } from "./domain/coach";
+import { summariseHousehold } from "./domain/household";
 
 /** The authenticated user, or a redirect to /login. Every query scopes to this. */
 export async function getSessionUser() {
@@ -437,6 +438,57 @@ export async function getCoachContext(): Promise<CoachContext> {
       .map(([name, cents]) => ({ name, cents }))
       .sort((a, b) => b.cents - a.cents),
     projectedEomCents: d.eom.projectedBalanceCents,
+  };
+}
+
+export async function getHouseholdPage() {
+  const user = await getSessionUser();
+  const myAccounts = await prisma.account.findMany({
+    where: { userId: user.id },
+    orderBy: { balanceCents: "desc" },
+  });
+  if (!user.householdId) {
+    return { household: null as null, myAccounts, summary: null as null, role: null as null };
+  }
+
+  const household = await prisma.household.findUnique({
+    where: { id: user.householdId },
+    include: { members: { orderBy: { createdAt: "asc" } } },
+  });
+  if (!household) return { household: null, myAccounts, summary: null, role: null };
+
+  const monthStart = startOfMonth(new Date());
+  const memberInputs = await Promise.all(
+    household.members.map(async (m) => {
+      const accounts = await prisma.account.findMany({ where: { userId: m.id } });
+      const sharedIds = accounts.filter((a) => a.shared).map((a) => a.id);
+      const txns = sharedIds.length
+        ? await prisma.transaction.findMany({
+            where: { userId: m.id, accountId: { in: sharedIds }, date: { gte: monthStart } },
+            include: { category: true },
+          })
+        : [];
+      let income = 0;
+      let spend = 0;
+      for (const t of txns) {
+        if (isIncome(t)) income += t.amountCents;
+        else if (isSpend(t)) spend += Math.abs(t.amountCents);
+      }
+      return {
+        name: m.name,
+        isYou: m.id === user.id,
+        accounts: accounts.map(({ name, type, balanceCents, shared }) => ({ name, type, balanceCents, shared })),
+        sharedIncomeCents: income,
+        sharedSpendCents: spend,
+      };
+    }),
+  );
+
+  return {
+    household,
+    myAccounts,
+    summary: summariseHousehold(memberInputs),
+    role: user.householdRole,
   };
 }
 

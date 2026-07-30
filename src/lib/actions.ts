@@ -9,6 +9,7 @@ import { markDuplicates } from "./domain/dedupe";
 import { ingestTransactions, syncAccounts, type SyncResult } from "./bank/sync";
 import { CHALLENGE_DEFS } from "./domain/challenges";
 import { ALLOWED_RECEIPT_TYPES, MAX_RECEIPT_BYTES, receiptKeyFor, storage } from "./storage";
+import { generateInviteCode, normaliseInviteCode } from "./domain/household";
 import { ruleBasedProvider, type CoachAnswer } from "./domain/coach";
 import { getCoachContext } from "./data";
 
@@ -248,6 +249,60 @@ export async function resolveChallenge(challengeId: string, outcome: "COMPLETED"
     data: { status: outcome },
   });
   revalidatePath("/habits");
+}
+
+/** Create a household and become its owner. */
+export async function createHousehold(formData: FormData) {
+  const user = await getSessionUser();
+  if (user.householdId) return;
+  const name = String(formData.get("name") ?? "").trim() || `${user.name.split(" ")[0]}'s household`;
+  const household = await prisma.household.create({
+    data: { name, inviteCode: generateInviteCode() },
+  });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { householdId: household.id, householdRole: "OWNER" },
+  });
+  revalidatePath("/household");
+}
+
+export async function joinHousehold(
+  _prev: { error: string | null },
+  formData: FormData,
+): Promise<{ error: string | null }> {
+  const user = await getSessionUser();
+  if (user.householdId) return { error: "You're already in a household — leave it first." };
+  const code = normaliseInviteCode(String(formData.get("code") ?? ""));
+  if (code.length !== 8) return { error: "Invite codes are 8 characters." };
+  const household = await prisma.household.findUnique({ where: { inviteCode: code } });
+  if (!household) return { error: "That code doesn't match a household." };
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { householdId: household.id, householdRole: "MEMBER" },
+  });
+  revalidatePath("/household");
+  return { error: null };
+}
+
+/** Leave the household; unshares your accounts on the way out. */
+export async function leaveHousehold() {
+  const user = await getSessionUser();
+  if (!user.householdId) return;
+  await prisma.account.updateMany({ where: { userId: user.id }, data: { shared: false } });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { householdId: null, householdRole: "MEMBER" },
+  });
+  revalidatePath("/household");
+}
+
+/** Flip an account's household visibility. Owners decide, per account. */
+export async function toggleAccountShared(accountId: string) {
+  const user = await getSessionUser();
+  const account = await prisma.account.findUnique({ where: { id: accountId, userId: user.id } });
+  if (!account) return;
+  await prisma.account.update({ where: { id: accountId }, data: { shared: !account.shared } });
+  revalidatePath("/household");
 }
 
 export async function addGoalContribution(goalId: string, dollars: number) {

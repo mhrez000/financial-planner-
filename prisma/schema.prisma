@@ -16,6 +16,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// A shared household. Members opt accounts in individually — nothing is
+// visible to the household unless its owner marks it shared.
+model Household {
+  id         String   @id @default(cuid())
+  name       String
+  inviteCode String   @unique
+  createdAt  DateTime @default(now())
+  members    User[]
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -23,6 +33,11 @@ model User {
   // scrypt salt:hash — swapped for Auth.js/passkeys in production (docs/SECURITY.md)
   passwordHash String?
   createdAt    DateTime @default(now())
+
+  householdId   String?
+  household     Household? @relation(fields: [householdId], references: [id], onDelete: SetNull)
+  // OWNER | MEMBER — owners can rename/regenerate the invite in a later phase
+  householdRole String     @default("MEMBER")
 
   accounts     Account[]
   transactions Transaction[]
@@ -48,6 +63,8 @@ model Account {
   balanceCents Int
   // Liability balances (credit cards, loans) are stored negative.
   lastSyncedAt DateTime?
+  // Visible to the owner's household (balances + aggregate spending only)
+  shared       Boolean   @default(false)
 
   transactions Transaction[]
 

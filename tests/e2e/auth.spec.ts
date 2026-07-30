@@ -55,4 +55,39 @@ test.describe("Authentication", () => {
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/login/);
   });
+
+  test("two users form a household via invite code", async ({ page }) => {
+    const stamp = Date.now();
+    const registerAs = async (name: string, email: string) => {
+      await page.goto("/register");
+      await page.getByLabel("Name").fill(name);
+      await page.getByLabel("Email").fill(email);
+      await page.getByLabel("Password").fill("supersecret1");
+      await page.getByRole("button", { name: "Create account" }).click();
+      await expect(page.getByText(`G’day, ${name.split(" ")[0]}`)).toBeVisible();
+    };
+
+    // User A creates the household and reads the invite code
+    await registerAs("Casey Owner", `casey-${stamp}@example.com`);
+    await page.goto("/household");
+    await page.getByLabel("Household name").fill("E2E House");
+    await page.getByRole("button", { name: "Create household" }).click();
+    await expect(page.getByRole("heading", { name: "E2E House" })).toBeVisible();
+    const code = (await page.locator("code").first().textContent())!.trim();
+    expect(code).toMatch(/^[A-Z2-9]{8}$/);
+
+    // Share their default account with the household
+    await page.getByRole("button", { name: /Share Everyday/ }).click();
+    await expect(page.getByRole("button", { name: /Stop sharing Everyday/ })).toBeVisible();
+    await page.getByRole("button", { name: "Sign out" }).click();
+
+    // User B joins with the code and sees both members
+    await registerAs("Riley Member", `riley-${stamp}@example.com`);
+    await page.goto("/household");
+    await page.getByLabel("Invite code").fill(code);
+    await page.getByRole("button", { name: "Join household" }).click();
+    await expect(page.getByRole("heading", { name: "E2E House" })).toBeVisible();
+    await expect(page.getByText("Casey Owner")).toBeVisible();
+    await expect(page.getByText(/you are a member/)).toBeVisible();
+  });
 });

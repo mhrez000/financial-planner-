@@ -43,7 +43,7 @@
 
 ## Phase 4 — Scale & hardening
 
-- Household mode (roles, shared budgets/goals, kids' allowances, partner privacy controls)
+- ✅ Household mode v1: households with invite codes, owner/member roles, per-account sharing (privacy enforced in the engine — unshared accounts and spending never enter household aggregates), combined balances and per-member month contributions (`src/lib/domain/household.ts`, `/household`). Later: shared budgets/goals, kids' allowances.
 - Performance: materialised aggregates, edge caching of static shell, <2s TTI on mid-range Android
 - WCAG 2.1 AA audit with assistive-tech testing; security penetration test; SOC 2 groundwork
 - App Store / Play Store readiness (review guidelines, privacy labels, data-safety forms)

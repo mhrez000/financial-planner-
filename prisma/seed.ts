@@ -83,6 +83,7 @@ const c = (dollars: number) => Math.round(dollars * 100);
 async function main() {
   // Idempotent reset
   await prisma.user.deleteMany();
+  await prisma.household.deleteMany();
   await prisma.netWorthSnapshot.deleteMany();
 
   const user = await prisma.user.create({
@@ -363,7 +364,74 @@ async function main() {
     });
   }
 
-  console.log(`Seeded ${txns.length} transactions for ${user.name}`);
+  // Household: Alex + partner Sam, both with shared everyday accounts
+  const household = await prisma.household.create({
+    data: { name: "The Nguyen–Chen household", inviteCode: "DEMO2345" },
+  });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { householdId: household.id, householdRole: "OWNER" },
+  });
+  await prisma.account.update({ where: { id: accounts.everyday.id }, data: { shared: true } });
+  await prisma.account.update({ where: { id: accounts.mortgage.id }, data: { shared: true } });
+
+  const partner = await prisma.user.create({
+    data: {
+      email: "sam@example.com",
+      name: "Sam Chen",
+      passwordHash: hashPassword("demo1234"),
+      householdId: household.id,
+      householdRole: "MEMBER",
+      categories: { create: CATEGORIES },
+    },
+  });
+  const partnerCats = await prisma.category.findMany({ where: { userId: partner.id } });
+  const pCat = (name: string) => partnerCats.find((c) => c.name === name)!.id;
+  const partnerAccount = await prisma.account.create({
+    data: {
+      userId: partner.id,
+      name: "Spending",
+      institution: "ING",
+      type: "TRANSACTION",
+      balanceCents: c(3120.4),
+      shared: true,
+    },
+  });
+  const partnerTxns: { date: Date; amountCents: number; merchant: string; categoryId: string }[] = [];
+  for (let m = 2; m >= 0; m--) {
+    const start = new Date(NOW.getFullYear(), NOW.getMonth() - m, 1);
+    const lastDay = m === 0 ? NOW.getDate() : new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+    for (const payday of [6, 20]) {
+      if (payday > lastDay) continue;
+      partnerTxns.push({
+        date: new Date(start.getFullYear(), start.getMonth(), payday, 4, 0),
+        amountCents: c(2860),
+        merchant: "NORTHSIDE HEALTH PAYROLL",
+        categoryId: pCat("Salary"),
+      });
+    }
+    for (const [merchant, cat, dollars, day] of [
+      ["COLES 0441 CHATSWOOD", "Groceries", 96.4, 5],
+      ["WOOLWORTHS 2103 SYDNEY", "Groceries", 88.2, 15],
+      ["CAMPOS COFFEE NEWTOWN", "Coffee", 6.5, 9],
+      ["THE ITALIAN PLACE SURRY HILLS", "Dining", 84.0, 19],
+      ["OPAL TRANSPORT NSW", "Transport", 42.6, 11],
+      ["CHEMIST WAREHOUSE EPPING", "Medical", 31.9, 22],
+    ] as const) {
+      if (day > lastDay) continue;
+      partnerTxns.push({
+        date: new Date(start.getFullYear(), start.getMonth(), day, 12, 0),
+        amountCents: -c(dollars),
+        merchant,
+        categoryId: pCat(cat),
+      });
+    }
+  }
+  await prisma.transaction.createMany({
+    data: partnerTxns.map((t) => ({ ...t, userId: partner.id, accountId: partnerAccount.id })),
+  });
+
+  console.log(`Seeded ${txns.length} transactions for ${user.name} (+${partnerTxns.length} for ${partner.name})`);
 }
 
 main()

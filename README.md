@@ -33,6 +33,7 @@ This repository contains the production-shaped web application (Next.js App Rout
 | **Sage Coach chat** | Conversational Q&A grounded in the real engines — affordability checks against safe-to-spend, goal what-ifs, payday plans — with a provider seam for the Claude layer |
 | **Safe to spend** | The one number that answers "can I spend right now?": cash − upcoming bills − remaining goal commitments, fully itemised |
 | **Receipts** | Attach photos/PDFs to transactions behind a storage abstraction (local → S3/R2), auth-checked serving |
+| **Household mode** | Invite-code households with per-account sharing — privacy enforced in the engine, combined finances, per-member contributions (partner login: `sam@example.com` / `demo1234`) |
 
 All domain logic lives in pure, unit-tested modules under `src/lib/domain/` — shared verbatim with mobile and background jobs.
 
