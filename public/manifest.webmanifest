@@ -1,0 +1,17 @@
+{
+  "name": "Sage — Money, mastered",
+  "short_name": "Sage",
+  "description": "Spend smarter, save more, build lasting wealth.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1210",
+  "theme_color": "#2f855a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

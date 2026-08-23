@@ -1,0 +1,255 @@
+// PRODUCTION VARIANT — identical to schema.prisma except the datasource
+// provider. Prisma cannot switch providers via env, so both files are
+// maintained and CI (scripts/check-schema-sync.mjs) fails if they drift.
+// Regenerate the init migration after model changes:
+//   npm run db:migration:postgres
+//
+// Sage data model.
+//
+// Money is stored as integer cents (AUD by default) — never floats.
+// Expense transaction amounts are negative, income positive.
+//
+// Local development runs on SQLite for a zero-setup experience; production
+// targets PostgreSQL. The schema deliberately avoids provider-specific
+// features so the swap is a one-line change plus `prisma migrate`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// A shared household. Members opt accounts in individually — nothing is
+// visible to the household unless its owner marks it shared.
+model Household {
+  id         String   @id @default(cuid())
+  name       String
+  inviteCode String   @unique
+  createdAt  DateTime @default(now())
+  members    User[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  // scrypt salt:hash — swapped for Auth.js/passkeys in production (docs/SECURITY.md)
+  passwordHash String?
+  createdAt    DateTime @default(now())
+
+  householdId   String?
+  household     Household? @relation(fields: [householdId], references: [id], onDelete: SetNull)
+  // OWNER | MEMBER — owners can rename/regenerate the invite in a later phase
+  householdRole String     @default("MEMBER")
+
+  accounts     Account[]
+  transactions Transaction[]
+  categories   Category[]
+  rules        CategoryRule[]
+  budgets      Budget[]
+  goals        Goal[]
+  bills        Bill[]
+  debts        Debt[]
+  habits       Habit[]
+  holdings     Holding[]
+  challenges   Challenge[]
+}
+
+// TRANSACTION | SAVINGS | CREDIT_CARD | LOAN | INVESTMENT | SUPER | PROPERTY | VEHICLE
+model Account {
+  id           String  @id @default(cuid())
+  userId       String
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  institution  String
+  type         String
+  balanceCents Int
+  // Liability balances (credit cards, loans) are stored negative.
+  lastSyncedAt DateTime?
+  // Visible to the owner's household (balances + aggregate spending only)
+  shared       Boolean   @default(false)
+
+  transactions Transaction[]
+
+  @@index([userId])
+}
+
+model Category {
+  id    String @id @default(cuid())
+  userId String
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name  String
+  // group: INCOME | ESSENTIAL | LIFESTYLE | FINANCIAL — used for 50/30/20 rollups
+  group String
+  icon  String @default("circle")
+
+  transactions Transaction[]
+  budgets      Budget[]
+  rules        CategoryRule[]
+
+  @@unique([userId, name])
+}
+
+model CategoryRule {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Case-insensitive substring matched against merchant + description.
+  pattern    String
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  priority   Int      @default(0)
+
+  @@index([userId])
+}
+
+model Transaction {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId   String
+  account     Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  date        DateTime
+  amountCents Int
+  merchant    String
+  description String    @default("")
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tags        String    @default("") // comma-separated; normalised table in Postgres phase
+  // Tax Centre: marked work-related/deductible for EOFY reporting
+  taxDeductible Boolean @default(false)
+  // Storage key of an attached receipt image (see src/lib/storage.ts)
+  receiptKey String?
+  // Set on children carved out of another transaction by a split. The
+  // original keeps the remainder, so amounts always sum to the pre-split
+  // total and no aggregation needs special-casing.
+  splitFromId String?
+  splitFrom   Transaction?  @relation("Splits", fields: [splitFromId], references: [id], onDelete: Cascade)
+  splits      Transaction[] @relation("Splits")
+  // Set when the recurring-detection engine identifies this as part of a series.
+  recurringKey String?
+
+  @@index([userId, date])
+  @@index([accountId])
+}
+
+model Budget {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  amountCents Int
+  // MONTHLY | WEEKLY | FORTNIGHTLY | ANNUAL
+  period      String   @default("MONTHLY")
+
+  @@unique([userId, categoryId, period])
+}
+
+model Goal {
+  id                 String    @id @default(cuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  icon               String    @default("target")
+  targetCents        Int
+  savedCents         Int       @default(0)
+  monthlyContribCents Int      @default(0)
+  deadline           DateTime?
+  createdAt          DateTime  @default(now())
+}
+
+model Bill {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  amountCents Int
+  nextDueDate DateTime
+  // WEEKLY | FORTNIGHTLY | MONTHLY | QUARTERLY | ANNUAL
+  frequency   String   @default("MONTHLY")
+  autopay     Boolean  @default(false)
+
+  @@index([userId, nextDueDate])
+}
+
+model Debt {
+  id              String @id @default(cuid())
+  userId          String
+  user            User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  // MORTGAGE | CAR_LOAN | CREDIT_CARD | PERSONAL_LOAN | HECS
+  type            String
+  balanceCents    Int
+  aprBps          Int // annual interest rate in basis points (e.g. 599 = 5.99%)
+  minPaymentCents Int
+}
+
+model Habit {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  icon      String     @default("flame")
+  createdAt DateTime   @default(now())
+  logs      HabitLog[]
+}
+
+model HabitLog {
+  id      String   @id @default(cuid())
+  habitId String
+  habit   Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date    DateTime
+
+  @@unique([habitId, date])
+}
+
+// Investment holdings. Prices are stored (manual/import refresh); a market
+// data feed slots in as a background job without schema changes.
+model Holding {
+  id             String @id @default(cuid())
+  userId         String
+  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  symbol         String
+  name           String
+  // AU_SHARES | INTL_SHARES | CRYPTO | CASH | SUPER
+  assetClass     String
+  units          Float
+  avgCostCents   Int // per unit
+  lastPriceCents Int // per unit
+  priceAsOf      DateTime @default(now())
+
+  @@unique([userId, symbol])
+}
+
+// A joined savings challenge. Progress/success is computed live from
+// transactions by the domain engine; status flips on user claim.
+model Challenge {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // NO_SPEND_WEEK | COFFEE_CHALLENGE | WEEKEND_FREEZE | FIFTY_TWO_WEEK
+  type      String
+  startDate DateTime
+  endDate   DateTime
+  // Type-specific target (e.g. coffee-spend cap in cents); null when N/A
+  targetCents Int?
+  // ACTIVE | COMPLETED | FAILED | ABANDONED
+  status    String   @default("ACTIVE")
+  xp        Int
+
+  @@index([userId, status])
+}
+
+model NetWorthSnapshot {
+  id               String   @id @default(cuid())
+  userId           String
+  date             DateTime
+  assetsCents      Int
+  liabilitiesCents Int
+
+  @@unique([userId, date])
+}

@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Sage semantic colour tokens.
+ * Calm, premium palette: deep neutral surfaces, a single sage-green accent,
+ * restrained positive/negative hues. Both themes meet WCAG AA for text.
+ */
+:root {
+  --bg: 248 249 247;
+  --surface: 255 255 255;
+  --surface-2: 241 244 240;
+  --border: 226 230 223;
+  --ink: 26 32 28;
+  --muted: 95 105 98;
+  --faint: 148 157 150;
+  --accent: 47 133 90;
+  --accent-soft: 224 240 231;
+  --positive: 34 139 94;
+  --negative: 192 57 60;
+  --warning: 176 122 20;
+}
+
+.dark {
+  --bg: 15 18 16;
+  --surface: 24 28 25;
+  --surface-2: 33 38 34;
+  --border: 45 51 46;
+  --ink: 235 240 236;
+  --muted: 158 168 160;
+  --faint: 108 118 110;
+  --accent: 82 186 133;
+  --accent-soft: 30 48 38;
+  --positive: 94 200 148;
+  --negative: 235 118 120;
+  --warning: 224 168 62;
+}
+
+html {
+  font-feature-settings: "cv11", "ss01";
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-bg text-ink antialiased;
+}
+
+/* Soft entrance for page content. Deliberately no fill-mode: a retained
+   animation effect keeps a transform applied (even an identity one), which
+   would make these containers the containing block for position:fixed
+   descendants and break overlay dialogs. */
+main > * {
+  animation: fade-up 0.35s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+::selection {
+  background: rgb(var(--accent) / 0.25);
+}

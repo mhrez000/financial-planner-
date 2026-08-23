@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "file:./dev.db"
+      SESSION_SECRET: "ci-only-session-secret"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run check:schemas
+      - run: npm run typecheck
+      - run: npm test
+      - name: Build with seeded database
+        run: |
+          npx prisma db push
+          npx tsx prisma/seed.ts
+          npm run build
+      - name: Install Playwright browser
+        run: npx playwright install chromium --with-deps
+      - name: E2E smoke suite
+        run: npm run e2e
