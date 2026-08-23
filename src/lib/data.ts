@@ -485,6 +485,29 @@ export async function getWeeklyReview() {
   };
 }
 
+export async function getCategoriesPage() {
+  const user = await getSessionUser();
+  const monthStart = startOfMonth(new Date());
+  const categories = await prisma.category.findMany({
+    where: { userId: user.id },
+    include: { _count: { select: { transactions: true, rules: true, budgets: true } } },
+    orderBy: [{ group: "asc" }, { name: "asc" }],
+  });
+  const monthTxns = await prisma.transaction.findMany({
+    where: { userId: user.id, date: { gte: monthStart }, amountCents: { lt: 0 } },
+    select: { categoryId: true, amountCents: true },
+  });
+  const monthSpend = new Map<string, number>();
+  for (const t of monthTxns) {
+    if (!t.categoryId) continue;
+    monthSpend.set(t.categoryId, (monthSpend.get(t.categoryId) ?? 0) + Math.abs(t.amountCents));
+  }
+  return categories.map((c) => ({
+    ...c,
+    monthSpendCents: monthSpend.get(c.id) ?? 0,
+  }));
+}
+
 export async function getHouseholdPage() {
   const user = await getSessionUser();
   const myAccounts = await prisma.account.findMany({

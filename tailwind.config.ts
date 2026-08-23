@@ -43,7 +43,10 @@ const config: Config = {
       keyframes: {
         "fade-up": {
           from: { opacity: "0", transform: "translateY(6px)" },
-          to: { opacity: "1", transform: "translateY(0)" },
+          // End at `none`, not translateY(0): with fill-mode both, a retained
+          // transform would make the element a containing block and break
+          // position:fixed descendants (e.g. the split dialog).
+          to: { opacity: "1", transform: "none" },
         },
       },
       animation: {

@@ -21,6 +21,7 @@ import {
   Repeat,
   Settings,
   Sprout,
+  Tags,
   Target,
   Users,
   Wallet,
@@ -45,6 +46,7 @@ const NAV = [
 
 const TOOLS = [
   { href: "/import", label: "Import & Sync", icon: Import },
+  { href: "/categories", label: "Categories", icon: Tags },
   { href: "/reports", label: "Reports", icon: FileText },
   { href: "/tax", label: "Tax Centre", icon: Landmark },
   { href: "/notifications", label: "Notifications", icon: Bell },

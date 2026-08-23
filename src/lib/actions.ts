@@ -10,6 +10,7 @@ import { ingestTransactions, syncAccounts, type SyncResult } from "./bank/sync";
 import { CHALLENGE_DEFS } from "./domain/challenges";
 import { ALLOWED_RECEIPT_TYPES, MAX_RECEIPT_BYTES, receiptKeyFor, storage } from "./storage";
 import { generateInviteCode, normaliseInviteCode } from "./domain/household";
+import { planSplit } from "./domain/split";
 import { ruleBasedProvider, type CoachAnswer } from "./domain/coach";
 import { getCoachContext, REVIEW_HABIT_NAME } from "./data";
 
@@ -196,6 +197,129 @@ export async function attachReceipt(txnId: string, formData: FormData): Promise<
   await prisma.transaction.update({ where: { id: txnId }, data: { receiptKey: key } });
   revalidatePath("/transactions");
   return { error: null };
+}
+
+export interface SplitPartInput {
+  amountDollars: number;
+  categoryId: string;
+}
+
+/**
+ * Split a transaction: carve child transactions out of the original, which
+ * keeps the remainder — totals are conserved so analytics need no changes.
+ */
+export async function splitTransaction(
+  txnId: string,
+  parts: SplitPartInput[],
+): Promise<{ error: string | null }> {
+  const user = await getSessionUser();
+  const txn = await prisma.transaction.findUnique({ where: { id: txnId, userId: user.id } });
+  if (!txn) return { error: "Transaction not found." };
+  if (txn.splitFromId) return { error: "This row is already part of a split." };
+
+  const plan = planSplit(
+    txn.amountCents,
+    parts.map((p) => Math.round(p.amountDollars * 100)),
+  );
+  if (!plan.ok) return { error: plan.error };
+
+  await prisma.$transaction([
+    ...plan.childAmounts.map((amountCents, i) =>
+      prisma.transaction.create({
+        data: {
+          userId: user.id,
+          accountId: txn.accountId,
+          date: txn.date,
+          amountCents,
+          merchant: txn.merchant,
+          description: `Split from ${txn.merchant}`,
+          categoryId: parts[i].categoryId || null,
+          splitFromId: txn.id,
+        },
+      }),
+    ),
+    prisma.transaction.update({
+      where: { id: txn.id },
+      data: { amountCents: plan.remainderCents },
+    }),
+  ]);
+  revalidatePath("/", "layout");
+  return { error: null };
+}
+
+/** Create a custom category. */
+export async function createCategory(
+  _prev: { error: string | null },
+  formData: FormData,
+): Promise<{ error: string | null }> {
+  const user = await getSessionUser();
+  const name = String(formData.get("name") ?? "").trim();
+  const group = String(formData.get("group") ?? "LIFESTYLE");
+  if (!name) return { error: "Give the category a name." };
+  if (!["INCOME", "ESSENTIAL", "LIFESTYLE", "FINANCIAL"].includes(group)) {
+    return { error: "Pick a valid group." };
+  }
+  const existing = await prisma.category.findUnique({
+    where: { userId_name: { userId: user.id, name } },
+  });
+  if (existing) return { error: "You already have a category with that name." };
+  await prisma.category.create({ data: { userId: user.id, name, group, icon: "circle" } });
+  revalidatePath("/categories");
+  return { error: null };
+}
+
+/** Rename a category everywhere at once. */
+export async function renameCategory(categoryId: string, formData: FormData) {
+  const user = await getSessionUser();
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return;
+  const clash = await prisma.category.findUnique({
+    where: { userId_name: { userId: user.id, name } },
+  });
+  if (clash && clash.id !== categoryId) return; // merge is the tool for combining
+  await prisma.category.update({ where: { id: categoryId, userId: user.id }, data: { name } });
+  revalidatePath("/", "layout");
+}
+
+/**
+ * Merge one category into another: transactions and rules move to the
+ * target, budgets on the source are absorbed (added to a same-period target
+ * budget, or retargeted), then the source is deleted.
+ */
+export async function mergeCategories(sourceId: string, targetId: string) {
+  const user = await getSessionUser();
+  if (sourceId === targetId) return;
+  const [source, target] = await Promise.all([
+    prisma.category.findUnique({ where: { id: sourceId, userId: user.id } }),
+    prisma.category.findUnique({ where: { id: targetId, userId: user.id } }),
+  ]);
+  if (!source || !target) return;
+
+  const sourceBudgets = await prisma.budget.findMany({ where: { userId: user.id, categoryId: sourceId } });
+  await prisma.$transaction([
+    prisma.transaction.updateMany({
+      where: { userId: user.id, categoryId: sourceId },
+      data: { categoryId: targetId },
+    }),
+    prisma.categoryRule.updateMany({
+      where: { userId: user.id, categoryId: sourceId },
+      data: { categoryId: targetId },
+    }),
+    ...sourceBudgets.map((b) =>
+      prisma.budget.upsert({
+        where: { userId_categoryId_period: { userId: user.id, categoryId: targetId, period: b.period } },
+        update: { amountCents: { increment: b.amountCents } },
+        create: { userId: user.id, categoryId: targetId, period: b.period, amountCents: b.amountCents },
+      }),
+    ),
+    prisma.category.delete({ where: { id: sourceId } }),
+  ]);
+  revalidatePath("/", "layout");
+}
+
+/** Form wrapper for mergeCategories. */
+export async function mergeCategoriesForm(formData: FormData) {
+  await mergeCategories(String(formData.get("sourceId") ?? ""), String(formData.get("targetId") ?? ""));
 }
 
 /** Tax Centre: flip the deductible flag on a transaction. */

@@ -13,7 +13,8 @@ This repository contains the production-shaped web application (Next.js App Rout
 | Area | Highlights |
 | --- | --- |
 | **Dashboard** | Financial Health Score (6 explainable pillars), net worth, cash flow chart, month-end forecast, bills due, budgets, goals, subscriptions, AI-coach insights, recent activity |
-| **Transactions** | Search/filter, manual entry with auto-categorisation, user-trainable rules engine ("MCD" → Fast Food) that retro-applies |
+| **Transactions** | Search/filter, manual entry with auto-categorisation, user-trainable rules engine ("MCD" → Fast Food) that retro-applies, split transactions (totals conserved) |
+| **Categories** | Create custom categories, rename inline, merge with transaction/rule/budget absorption |
 | **Budgets** | Category budgets with pro-rata "on track" pacing, month-progress marker, four budgeting methods |
 | **Goals** | Progress, predicted completion date, probability of success, one-tap boosts |
 | **Analytics** | Trends, category donut, weekday profile, calendar heat map, largest purchases, merchant analysis |

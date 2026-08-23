@@ -1,5 +1,6 @@
 import { Search } from "lucide-react";
 import { ReceiptCell } from "./ReceiptCell";
+import { SplitCell } from "./SplitCell";
 import { getTransactionsPage } from "@/lib/data";
 import { addTransaction, addCategoryRule } from "@/lib/actions";
 import { formatAUD } from "@/lib/domain/money";
@@ -127,7 +128,16 @@ export default async function TransactionsPage({
                     {formatAUD(t.amountCents, { signed: true })}
                   </td>
                   <td className="py-2.5">
-                    <ReceiptCell txnId={t.id} hasReceipt={t.receiptKey !== null} />
+                    <span className="flex items-center gap-1.5">
+                      <ReceiptCell txnId={t.id} hasReceipt={t.receiptKey !== null} />
+                      <SplitCell
+                        txnId={t.id}
+                        amountCents={t.amountCents}
+                        merchant={t.merchant}
+                        isChild={t.splitFromId !== null}
+                        categories={spendCats.map(({ id, name }) => ({ id, name }))}
+                      />
+                    </span>
                   </td>
                 </tr>
               ))}

@@ -70,6 +70,7 @@ CREATE TABLE "Transaction" (
     "tags" TEXT NOT NULL DEFAULT '',
     "taxDeductible" BOOLEAN NOT NULL DEFAULT false,
     "receiptKey" TEXT,
+    "splitFromId" TEXT,
     "recurringKey" TEXT,
 
     CONSTRAINT "Transaction_pkey" PRIMARY KEY ("id")
@@ -249,6 +250,9 @@ ALTER TABLE "Transaction" ADD CONSTRAINT "Transaction_accountId_fkey" FOREIGN KE
 
 -- AddForeignKey
 ALTER TABLE "Transaction" ADD CONSTRAINT "Transaction_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Transaction" ADD CONSTRAINT "Transaction_splitFromId_fkey" FOREIGN KEY ("splitFromId") REFERENCES "Transaction"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Budget" ADD CONSTRAINT "Budget_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;

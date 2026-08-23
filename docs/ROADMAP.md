@@ -33,6 +33,8 @@
 - ✅ PWA manifest + icon — installable on mobile home screens
 - ✅ Money Date (/review): the guided weekly review ritual — wins → watch-outs → week-ahead plan, computed from live data, ending in a logged habit streak
 - ✅ Production deployment: multi-stage Dockerfile (standalone, non-root), docker-compose with Postgres, maintained Postgres schema + generated init migration with a CI drift guard, /api/health endpoint, docs/DEPLOYMENT.md (Docker/Fly/Railway + Vercel paths)
+- ✅ Split transactions: carve child transactions with their own categories out of the original, which keeps the remainder — totals conserved so every aggregation stays correct (`src/lib/domain/split.ts`)
+- ✅ Category management (/categories): create custom categories, rename inline everywhere at once, merge with transaction/rule/budget absorption
 
 ## Phase 3 — Intelligence & delight
 

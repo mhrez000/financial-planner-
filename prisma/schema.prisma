@@ -117,6 +117,12 @@ model Transaction {
   taxDeductible Boolean @default(false)
   // Storage key of an attached receipt image (see src/lib/storage.ts)
   receiptKey String?
+  // Set on children carved out of another transaction by a split. The
+  // original keeps the remainder, so amounts always sum to the pre-split
+  // total and no aggregation needs special-casing.
+  splitFromId String?
+  splitFrom   Transaction?  @relation("Splits", fields: [splitFromId], references: [id], onDelete: Cascade)
+  splits      Transaction[] @relation("Splits")
   // Set when the recurring-detection engine identifies this as part of a series.
   recurringKey String?
 

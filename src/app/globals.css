@@ -46,9 +46,12 @@ body {
   @apply bg-bg text-ink antialiased;
 }
 
-/* Soft entrance for page content */
+/* Soft entrance for page content. Deliberately no fill-mode: a retained
+   animation effect keeps a transform applied (even an identity one), which
+   would make these containers the containing block for position:fixed
+   descendants and break overlay dialogs. */
 main > * {
-  animation: fade-up 0.35s ease-out both;
+  animation: fade-up 0.35s ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {

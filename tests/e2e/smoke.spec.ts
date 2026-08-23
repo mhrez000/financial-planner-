@@ -114,6 +114,47 @@ test.describe("Sage smoke suite", () => {
     expect(await res.json()).toEqual({ status: "ok", db: "up" });
   });
 
+  test("splitting a transaction conserves the total", async ({ page }) => {
+    await page.goto("/transactions?q=woolworths");
+    const firstRow = page.locator("tbody tr").first();
+    const amountText = (await firstRow.locator("td").nth(4).textContent())!;
+    const original = Number(amountText.replace(/[^0-9.]/g, ""));
+    expect(original).toBeGreaterThan(1);
+
+    await firstRow.getByRole("button", { name: /^Split/ }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Split 1 amount").fill("1.00");
+    await dialog.getByLabel("Split 1 category").selectOption({ label: "Dining" });
+    await expect(dialog.getByText(`Original keeps: $${(original - 1).toFixed(2)}`)).toBeVisible();
+    await dialog.getByRole("button", { name: "Split into 2 transactions" }).click();
+    await expect(dialog).not.toBeVisible();
+
+    // Child row appears (marked ↳ split, categorised Dining) and original shrank
+    await page.goto("/transactions?q=woolworths");
+    await expect(page.getByText("↳ split").first()).toBeVisible();
+    const childRow = page.locator("tbody tr").filter({ hasText: "↳ split" }).filter({ hasText: "Dining" }).first();
+    await expect(childRow).toBeVisible();
+    await expect(childRow).toContainText("−$1"); // whole dollars render without cents
+  });
+
+  test("categories can be created, renamed and merged", async ({ page }) => {
+    const stamp = Date.now();
+    await page.goto("/categories");
+    // Create
+    await page.getByLabel("Category name").fill(`Pets ${stamp}`);
+    await page.getByRole("button", { name: "Create" }).click();
+    await expect(page.getByLabel(`Rename Pets ${stamp}`)).toBeVisible();
+    // Rename
+    await page.getByLabel(`Rename Pets ${stamp}`).fill(`Furry Friends ${stamp}`);
+    await page.getByLabel(`Save name for Pets ${stamp}`).click();
+    await expect(page.getByLabel(`Rename Furry Friends ${stamp}`)).toBeVisible();
+    // Merge it away into Shopping
+    await page.getByLabel("Category to merge away").selectOption({ label: `Furry Friends ${stamp}` });
+    await page.getByLabel("Category to keep").selectOption({ label: "Shopping" });
+    await page.getByRole("button", { name: "Merge", exact: true }).click();
+    await expect(page.getByLabel(`Rename Furry Friends ${stamp}`)).not.toBeVisible();
+  });
+
   test("seeded household combines only shared finances", async ({ page }) => {
     await page.goto("/household");
     await expect(page.getByRole("heading", { name: "The Nguyen–Chen household" })).toBeVisible();
